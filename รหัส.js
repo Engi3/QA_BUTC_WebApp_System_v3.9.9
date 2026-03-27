@@ -516,15 +516,17 @@ function saveForm(formData) {
     const desc       = formData.description || "";
     const note       = formData.note        || "";
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === formData.formId) {
-        sheet.getRange(i + 1, 1, 1, 10).setValues([[
-          formData.formId, formData.formName, formData.sectionId,
-          fieldsStr, formData.formType, formData.isActive,
-          data[i][6], data[i][7], desc, note
-        ]]);
-        writeAuditLog(adminEmail, "UPDATE_FORM", formData.formId, formData.formName);
-        return { success: true, message: "อัปเดต Form สำเร็จ" };
+    if (formData.formId) {
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === formData.formId) {
+          sheet.getRange(i + 1, 1, 1, 10).setValues([[
+            formData.formId, formData.formName, formData.sectionId,
+            fieldsStr, formData.formType, formData.isActive,
+            data[i][6], data[i][7], desc, note
+          ]]);
+          writeAuditLog(adminEmail, "UPDATE_FORM", formData.formId, formData.formName);
+          return { success: true, message: "อัปเดต Form สำเร็จ" };
+        }
       }
     }
 
@@ -1330,6 +1332,7 @@ function loadInitialData() {
         forms:       getAllForms().data          || [],
         theme:       getThemeSettings().data     || {},
         iqaMapping:  getIqaMappingData().data    || {},
+        iqaSchema:   getIqaSchema().data        || { phases: [] },
         allUsers:    getAllUsers().data          || { admins: [], managers: [], users: [] }
       };
       _putCache('app_static_data', staticData, 300); // cache 5 min
@@ -1343,6 +1346,7 @@ function loadInitialData() {
       forms:       staticData.forms,
       theme:       staticData.theme,
       iqaMapping:  staticData.iqaMapping,
+      iqaSchema:   staticData.iqaSchema,
       allUsers:    staticData.allUsers,
       dashboard:   dashboard.data || [],
       visits:      visits
@@ -1484,6 +1488,69 @@ function saveIqaMappingData(mappingData) {
     writeAuditLog(adminEmail, "SAVE_IQA_MAPPING", "tb_iqa_mapping", `Updated ${keys.length} pages`);
     return { success: true };
   } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// ─────────────────────────────────────────
+// IQA SCHEMA (Dynamic Builder) — Task 1
+// เก็บโครงสร้าง Phase / Page / Item แบบ Dynamic ใน tb_iqa_mapping
+// ─────────────────────────────────────────
+function getIqaSchema() {
+  try {
+    const sheet = ensureSheetExists("tb_iqa_mapping");
+    const data  = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === "iqa_schema_config") {
+        try { return { success: true, data: JSON.parse(data[i][1] || '{"phases":[]}') }; } catch(e) {}
+      }
+    }
+    return { success: true, data: { phases: [] } };
+  } catch(e) { return { success: false, data: { phases: [] } }; }
+}
+
+function saveIqaSchema(schemaObj) {
+  try {
+    _clearAppCache();
+    const adminEmail = Session.getActiveUser().getEmail();
+    const sheet = ensureSheetExists("tb_iqa_mapping");
+    const data  = sheet.getDataRange().getValues();
+    const valStr = JSON.stringify(schemaObj);
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === "iqa_schema_config") {
+        sheet.getRange(i + 1, 2, 1, 3).setValues([[valStr, new Date(), adminEmail]]);
+        writeAuditLog(adminEmail, "SAVE_IQA_SCHEMA", "tb_iqa_mapping", "Schema updated");
+        return { success: true, message: "บันทึก IQA Schema สำเร็จ" };
+      }
+    }
+    sheet.appendRow(["iqa_schema_config", valStr, new Date(), adminEmail]);
+    writeAuditLog(adminEmail, "SAVE_IQA_SCHEMA", "tb_iqa_mapping", "Schema created");
+    return { success: true, message: "บันทึก IQA Schema สำเร็จ" };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// ─────────────────────────────────────────
+// AUDIT LOG EXPORT — Task 5
+// ส่ง log ดิบจาก tb_audit กลับไปให้ Client Download
+// ─────────────────────────────────────────
+function getAuditLog(limitRows) {
+  try {
+    const sheet = ensureSheetExists("tb_audit");
+    const data  = sheet.getDataRange().getValues();
+    const limit = Math.min(limitRows || 3000, 5000);
+    const startRow = Math.max(1, data.length - limit);
+    const rows = [];
+    for (let i = startRow; i < data.length; i++) {
+      if (!data[i][0]) continue;
+      rows.push({
+        timestamp: data[i][0] instanceof Date ? data[i][0].toISOString() : String(data[i][0]),
+        email:     String(data[i][1] || ""),
+        action:    String(data[i][2] || ""),
+        target:    String(data[i][3] || ""),
+        detail:    String(data[i][4] || "")
+      });
+    }
+    rows.reverse(); // เรียงใหม่ล่าสุดก่อน
+    return { success: true, data: rows, total: rows.length };
+  } catch(e) { return { success: false, data: [], message: e.toString() }; }
 }
 
 // ─────────────────────────────────────────

@@ -496,6 +496,11 @@ function renderManagerDashboard() {
     buildSectionCards(ms, yd, "mgr-section-grid", year);
   }
 
+  // IQA Virtual Dashboard สำหรับ Manager
+  if (typeof renderIqaPublicView === 'function') {
+    setTimeout(function() { renderIqaPublicView('mgr-iqa-container'); }, 50);
+  }
+
   var editBtn = document.getElementById("mgr-edit-data-btn");
   if (editBtn) {
     if (APP.user && APP.user.profile && APP.user.profile.permission === "edit") {
@@ -662,6 +667,10 @@ function renderAdminDashboard(){
   buildSectionCards(active, yd, "admin-section-grid", year);
   renderAdminCharts(sub, total-sub, yd);
   _renderFormProgressGrid("admin-form-progress-grid", year);
+  // IQA Virtual Dashboard สำหรับ Admin Overview
+  if (typeof renderIqaPublicView === 'function') {
+    setTimeout(function() { renderIqaPublicView('admin-iqa-container'); }, 50);
+  }
 }
 
 function renderAdminCharts(sub, pend, yd){

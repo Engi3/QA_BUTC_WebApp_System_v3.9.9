@@ -29,6 +29,8 @@ var APP = {
   _dataLoaded:   false,
   selectedTheme: {},
   iqaMapping:    {},
+  iqaSchema:     { phases: [] }, // Dynamic IQA Schema (Task 1)
+  _iqaPages:     {},              // computed จาก iqaSchema
   gradStops:     [{color:"#1e40af",pct:0},{color:"#2563eb",pct:50},{color:"#0ea5e9",pct:100}],
   gradDir:       "135deg",
   gradType:      "linear"
@@ -330,10 +332,10 @@ function _setupAdminPanel() {
     populateDeptSectionsCheckboxes([]); 
   }
   
-  renderSectionList(); 
+  renderSectionList();
   renderFormList();
-  renderSettingsYearList(); 
-  populateFormSectionDropdown();
+  renderSettingsYearList();
+  if (typeof populateFormSectionDropdown === 'function') populateFormSectionDropdown();
   populateSectionFormCheckboxes([]); 
   
 
@@ -447,9 +449,13 @@ document.addEventListener("DOMContentLoaded", function() {
         APP.theme       = res.theme       || {};
         APP.visits      = res.visits      || {};
         APP.iqaMapping  = res.iqaMapping  || {};
-        if (res.allUsers) APP.allUsersCache = res.allUsers; // cache user list จาก initial load
+        // โหลด Dynamic IQA Schema (Task 1) — คำนวณ _iqaPages และ iqaMapping จาก schema
+        if (res.iqaSchema) {
+          APP.iqaSchema = res.iqaSchema;
+          if (typeof _computeFromSchema === 'function') _computeFromSchema(APP.iqaSchema);
+        }
+        if (res.allUsers) APP.allUsersCache = res.allUsers;
         APP._dataLoaded = true;
-        // ลบส่วนที่เคยดึง iqaMapping ออกจาก APP.theme
         if (APP.theme && Object.keys(APP.theme).length) applyThemeData(APP.theme);
       }
       onDataLoaded();
@@ -494,10 +500,15 @@ function refreshAllData(cb) {
         APP.forms       = res.forms       || [];
         APP.visits      = res.visits      || {};
         if (res.allUsers) APP.allUsersCache = res.allUsers;
+        // อัปเดต iqaSchema หลัง refresh
+        if (res.iqaSchema) {
+          APP.iqaSchema = res.iqaSchema;
+          if (typeof _computeFromSchema === 'function') _computeFromSchema(APP.iqaSchema);
+        }
         APP._dataLoaded = true;
         if (res.theme && Object.keys(res.theme||{}).length) {
           APP.theme = res.theme;
-          applyThemeData(res.theme);
+          try { applyThemeData(res.theme); } catch(te) { console.warn("refreshAllData theme error:", te); }
           if (res.theme.iqaMapping) {
             try { APP.iqaMapping = JSON.parse(res.theme.iqaMapping); } catch(e) { APP.iqaMapping = {}; }
           }

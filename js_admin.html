@@ -517,8 +517,29 @@ function executeDelete() {
   } else if (type==="user-manager"||type==="user-user") {
     var utype = type==="user-manager"?"manager":"user";
     google.script.run.withSuccessHandler(function(res){ reset(); if(res&&res.success){showToast('ลบบัญชี "'+name+'" สำเร็จ',"success");loadAllUsers();}else showToast((res&&res.message)||"ลบไม่สำเร็จ","danger"); }).withFailureHandler(function(err){reset();showToast(err.message||err,"danger");}).deleteUser(utype,id);
-  } else if (type==="dept") {  // ✅ เพิ่มการลบ Department
+  } else if (type==="dept") {
     google.script.run.withSuccessHandler(function(res){ reset(); if(res&&res.success){showToast('ลบฝ่าย "'+name+'" สำเร็จ',"success");refreshAllData(function(){renderDepartmentList();});}else showToast((res&&res.message)||"ลบไม่สำเร็จ","danger"); }).withFailureHandler(function(err){reset();showToast(err.message||err,"danger");}).deleteDepartment(id);
+  // ── Task 1: ลบ IQA Schema Elements ────────────────────────
+  } else if (type==="iqa-phase") {
+    // id = phaseIdx (number string)
+    var phiDel = parseInt(id, 10);
+    if (!isNaN(phiDel) && APP.iqaSchema && APP.iqaSchema.phases) {
+      APP.iqaSchema.phases.splice(phiDel, 1);
+      _iqaBuilderActivePhaseIdx = Math.max(0, phiDel - 1);
+      _iqaBuilderRender();
+      showToast('ลบ Phase "'+name+'" แล้ว (กดบันทึก Schema เพื่อยืนยัน)',"success");
+    }
+    reset();
+  } else if (type==="iqa-page") {
+    // id = "phaseIdx:pageIdx"
+    var parts = id.split(":");
+    var phiP = parseInt(parts[0],10); var pgiP = parseInt(parts[1],10);
+    if (APP.iqaSchema && APP.iqaSchema.phases && APP.iqaSchema.phases[phiP]) {
+      APP.iqaSchema.phases[phiP].pages.splice(pgiP, 1);
+      _iqaBuilderRender();
+      showToast('ลบ Page "'+name+'" แล้ว',"success");
+    }
+    reset();
   }
 }
 
@@ -591,11 +612,20 @@ function renderFormList() {
   if (!APP.forms.length) { c.innerHTML='<p style="color:var(--txt-muted);text-align:center;padding:24px 0;"><i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:8px;"></i>ยังไม่มี Form</p>'; return; }
   var rows = "";
   APP.forms.forEach(function(f) {
-    var sec = null;
-    for (var i=0;i<APP.sections.length;i++){if(APP.sections[i].sectionId===f.sectionId){sec=APP.sections[i];break;}}
+    // รวม sections จาก field-level sectionIds (ใหม่) + form-level sectionId (เก่า)
+    var secNames = [], seenIds = {};
+    function _addSec(sid) {
+      if (!sid || seenIds[sid]) return; seenIds[sid] = true;
+      for (var j=0;j<APP.sections.length;j++){if(APP.sections[j].sectionId===sid){secNames.push(APP.sections[j].sectionName);break;}}
+    }
+    if (f.sectionId) _addSec(f.sectionId);
+    (f.fields||[]).forEach(function(fld){(fld.sectionIds||[]).forEach(function(sid){_addSec(sid);});});
+    var secCell = secNames.length
+      ? secNames.map(function(n){return '<span style="display:inline-block;background:var(--primary-ul);color:var(--primary);padding:1px 7px;border-radius:10px;font-size:.72rem;margin:1px 2px;">'+escHtml(n)+'</span>';}).join("")
+      : '<span style="color:var(--txt-muted);font-size:.78rem;">—</span>';
     rows += '<tr>'
-      +'<td><strong style="color:var(--txt);">'+escHtml(f.formName)+'</strong>'+(f.description?'<br><small class="text-muted">'+escHtml(f.description.substring(0,60))+'</small>':'')+'</td>'
-      +'<td><small class="text-muted">'+(sec?escHtml(sec.sectionName):'<span style="color:var(--warning);">ไม่ระบุ</span>')+'</small></td>'
+      +'<td><strong style="color:var(--txt);">'+escHtml(f.formName)+'</strong>'+(f.description?'<br><small class="text-muted">'+escHtml(String(f.description).substring(0,60))+'</small>':'')+'</td>'
+      +'<td>'+secCell+'</td>'
       +'<td style="text-align:center;"><span style="background:var(--primary-ul);color:var(--primary);padding:2px 9px;border-radius:10px;font-size:.74rem;">'+(f.fields||[]).length+' ฟิลด์</span></td>'
       +'<td>'+(f.isActive?'<span class="qa-status-pill ok">ใช้งาน</span>':'<span class="qa-status-pill wait">ปิด</span>')+'</td>'
       +'<td><button class="qa-btn-ghost btn-sm me-1" data-form-edit="'+escHtml(f.formId)+'" onclick="_formEditBtn(this)"><i class="bi bi-pencil"></i></button>'
@@ -646,5 +676,185 @@ function _applyCustomColor() {
   _closeColorPicker();
 }
 
+// ============================================================
+// Task 4: Export IQA → CSV / PDF
+// Task 5: Download Audit Log → CSV
+// ============================================================
+
+// ── Helper: ดาวน์โหลด CSV โดยตรงในเบราว์เซอร์ (ไม่ต้องพึ่ง Server) ──
+function _downloadCsv(filename, csvContent) {
+  var blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement("a");
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Export IQA เป็น CSV ─────────────────────────────────────
+// Task 4: รวบรวม IQA mapping + ข้อมูลจริงในปีที่เลือก แล้ว export CSV
+function exportIqaToCsv() {
+  var yearEl = document.getElementById("admin-year-select") || document.getElementById("mgr-year-select");
+  var year   = yearEl ? yearEl.value : "";
+  var schema = APP.iqaSchema || { phases: [] };
+
+  if (!schema.phases || !schema.phases.length) {
+    showToast("ยังไม่มี IQA Schema — กรุณาสร้าง Schema ก่อน","warning"); return;
+  }
+
+  var rows = [["Phase","Page","Label","Form","Field","ค่าข้อมูล","สถานะ"]];
+
+  (schema.phases || []).forEach(function(phase) {
+    (phase.pages || []).forEach(function(page) {
+      (page.items || []).forEach(function(item) {
+        var formObj = item.formId ? (APP.forms||[]).find(function(f){return f.formId===item.formId;}) : null;
+        var formName = formObj ? formObj.formName : (item.formId || "—");
+        var fieldLabel = "";
+        if (formObj && item.fieldKey) {
+          var fld = (formObj.fields||[]).find(function(f){return f.key===item.fieldKey;});
+          fieldLabel = fld ? fld.label : item.fieldKey;
+        }
+
+        // หาค่าข้อมูลจริง
+        var val = "", status = "ยังไม่ Mapped";
+        if (item.formId) {
+          status = "Mapped";
+          // หา secId
+          var secId = "";
+          if (formObj && formObj.sectionId) { secId = formObj.sectionId; }
+          else if (formObj && item.fieldKey) {
+            var fldDef = (formObj.fields||[]).find(function(ff){return ff.key===item.fieldKey;});
+            if (fldDef && fldDef.sectionIds && fldDef.sectionIds.length) secId = fldDef.sectionIds[0];
+            else { var fs = (APP.sections||[]).find(function(s){return s.isActive;}); if(fs) secId = fs.sectionId; }
+          }
+          var sub = secId && year ? (APP.dashboard||[]).find(function(d){return d.sectionId===secId&&String(d.year)===String(year);}) : null;
+          if (sub) {
+            var dataObj = {};
+            try { dataObj = JSON.parse(sub.dataJson||"{}"); } catch(e) {}
+            if (item.fieldKey) {
+              val = dataObj[item.fieldKey] !== undefined ? String(dataObj[item.fieldKey]) : "";
+              status = val ? "มีข้อมูล" : "Mapped / ยังไม่มีข้อมูล";
+            } else {
+              status = Object.keys(dataObj).length > 0 ? "มีข้อมูล (ภาพรวม Form)" : "Mapped / ยังไม่มีข้อมูล";
+            }
+          }
+        }
+        rows.push([
+          phase.phaseName, page.pageName, item.label,
+          formName, fieldLabel, val, status
+        ]);
+      });
+    });
+  });
+
+  var csv = rows.map(function(r){
+    return r.map(function(c){return '"'+String(c||"").replace(/"/g,'""')+'"';}).join(",");
+  }).join("\r\n");
+
+  _downloadCsv("IQA_Export_"+year+"_"+new Date().toISOString().slice(0,10)+".csv", csv);
+  showToast("Export IQA เป็น CSV สำเร็จ","success");
+}
+
+// ── Export IQA เป็น PDF (พิมพ์หน้าจอ) ─────────────────────
+// Task 4: สร้างหน้า print-friendly แล้วเรียก window.print()
+function exportIqaToPdf() {
+  var yearEl = document.getElementById("admin-year-select") || document.getElementById("mgr-year-select");
+  var year   = yearEl ? yearEl.value : "";
+  var schema = APP.iqaSchema || { phases: [] };
+
+  if (!schema.phases || !schema.phases.length) {
+    showToast("ยังไม่มี IQA Schema","warning"); return;
+  }
+
+  var collegeName = (APP.theme && APP.theme.collegeName) || "QA BUTC System";
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+    + '<title>IQA Report '+year+'</title>'
+    + '<style>body{font-family:Sarabun,sans-serif;font-size:13px;color:#000;margin:20px;}h1{font-size:18px;text-align:center;margin-bottom:4px;}h2{font-size:15px;margin:12px 0 6px;color:#1e3a8a;}h3{font-size:13px;margin:8px 0 4px;color:#374151;}table{width:100%;border-collapse:collapse;margin-bottom:12px;}th,td{border:1px solid #ccc;padding:5px 8px;font-size:12px;}th{background:#1e3a8a;color:#fff;}tr:nth-child(even){background:#f0f0f0;}.page-break{page-break-before:always;}.chip-ok{color:#047857;font-weight:bold;}.chip-no{color:#b91c1c;}.subtitle{text-align:center;color:#555;margin-bottom:16px;font-size:12px;}'
+    + '@media print{body{margin:10px;}}'
+    + '</style></head><body>'
+    + '<h1>รายงาน IQA เสมือน — '+escHtml(collegeName)+'</h1>'
+    + '<p class="subtitle">ปีการศึกษา '+escHtml(year||"(ทุกปี)")+' | สร้างเมื่อ '+new Date().toLocaleDateString("th-TH")+'</p>';
+
+  (schema.phases || []).forEach(function(phase, pi) {
+    if (pi > 0) html += '<div class="page-break"></div>';
+    html += '<h2>'+(pi+1)+'. '+escHtml(phase.phaseName)+'</h2>';
+    (phase.pages || []).forEach(function(page) {
+      html += '<h3><i>'+escHtml(page.pageName)+'</i>'+(page.route?' <small style="color:#6b7280;">('+escHtml(page.route)+')</small>':'')+'</h3>'
+        + '<table><thead><tr><th>#</th><th>หัวข้อ / Label</th><th>Form ที่ Mapping</th><th>Field</th><th>ค่าข้อมูล</th><th>สถานะ</th></tr></thead><tbody>';
+      (page.items || []).forEach(function(item, ii) {
+        var formObj = item.formId ? (APP.forms||[]).find(function(f){return f.formId===item.formId;}) : null;
+        var formName = formObj ? formObj.formName : (item.formId?"—":"ยังไม่ Mapped");
+        var fieldLabel = "";
+        if (formObj && item.fieldKey) {
+          var fld = (formObj.fields||[]).find(function(f){return f.key===item.fieldKey;});
+          fieldLabel = fld ? fld.label : item.fieldKey;
+        }
+        var val = "", statusClass = "chip-no", statusText = "ยังไม่ Mapped";
+        if (item.formId) {
+          statusClass = "chip-no"; statusText = "ไม่มีข้อมูล";
+          var secId = "";
+          if (formObj && formObj.sectionId) secId = formObj.sectionId;
+          else if (formObj && item.fieldKey) {
+            var fldDef = (formObj.fields||[]).find(function(ff){return ff.key===item.fieldKey;});
+            if (fldDef && fldDef.sectionIds && fldDef.sectionIds.length) secId = fldDef.sectionIds[0];
+            else { var fs = (APP.sections||[]).find(function(s){return s.isActive;}); if(fs) secId = fs.sectionId; }
+          }
+          var sub = secId && year ? (APP.dashboard||[]).find(function(d){return d.sectionId===secId&&String(d.year)===String(year);}) : null;
+          if (sub) {
+            var dObj = {}; try { dObj = JSON.parse(sub.dataJson||"{}"); } catch(e) {}
+            if (item.fieldKey && dObj[item.fieldKey] !== undefined) {
+              val = String(dObj[item.fieldKey]);
+              statusClass = "chip-ok"; statusText = "มีข้อมูล";
+            } else if (!item.fieldKey && Object.keys(dObj).length > 0) {
+              statusClass = "chip-ok"; statusText = "มีข้อมูล (ภาพรวม)";
+            }
+          }
+        }
+        html += '<tr><td>'+(ii+1)+'</td><td>'+escHtml(item.label)+'</td><td>'+escHtml(formName)+'</td>'
+          +'<td>'+escHtml(fieldLabel||"—")+'</td><td>'+escHtml(val||"—")+'</td>'
+          +'<td class="'+statusClass+'">'+statusText+'</td></tr>';
+      });
+      html += '</tbody></table>';
+    });
+  });
+
+  html += '</body></html>';
+
+  var win = window.open("","_blank","width=900,height=700");
+  if (!win) { showToast("กรุณาอนุญาต Pop-up ในเบราว์เซอร์","warning"); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(function(){ win.print(); }, 600);
+}
+
+// ── Task 5: Download Audit Log as CSV ──────────────────────
+function downloadAuditLog() {
+  var btn = document.getElementById("btn-download-log");
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>กำลังดึง...'; }
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download me-1"></i>ดาวน์โหลด Log'; }
+      if (!res || !res.success) { showToast("ดึง Log ไม่สำเร็จ","danger"); return; }
+      var rows = [["Timestamp","Email","Action","Target","Detail"]];
+      (res.data || []).forEach(function(r) {
+        rows.push([r.timestamp, r.email, r.action, r.target, r.detail]);
+      });
+      var csv = rows.map(function(r){
+        return r.map(function(c){return '"'+String(c||"").replace(/"/g,'""')+'"';}).join(",");
+      }).join("\r\n");
+      _downloadCsv("AuditLog_"+new Date().toISOString().slice(0,10)+".csv", csv);
+      showToast("ดาวน์โหลด Log "+res.total+" รายการสำเร็จ","success");
+    })
+    .withFailureHandler(function(err) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download me-1"></i>ดาวน์โหลด Log'; }
+      showToast(err.message||err,"danger");
+    })
+    .getAuditLog(3000);
+}
 
 </script>

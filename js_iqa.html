@@ -1,569 +1,542 @@
 <script>
 // ============================================================
-// js_iqa.html — IQA Mapping 2-Step + Public View
+// js_iqa.html — Dynamic IQA Schema Builder + Public View
+// Task 1: Dynamic IQA Mapping Builder (แทน hardcode IQA_PAGES)
 // ============================================================
 
-var _iqaCurrentPhase = "Phase1";
-var _iqaSelectedPageId = null;  
+// ── ตัวแปร State ────────────────────────────────────────────
+var _iqaBuilderActivePhaseIdx = 0;   // Phase tab ที่กำลัง active ใน builder
+var _iqaBuilderActivePageKey  = -1;  // phaseIdx*1000+pageIdx ของ page ที่ expand
 
-var IQA_PAGES = {
-  "Phase1_01_ข้อมูลเกี่ยวกับสถานศึกษา": {
-    "id": "Phase1_01_ข้อมูลเกี่ยวกับสถานศึกษา", "name": "ข้อมูลเกี่ยวกับสถานศึกษา", "phase": "Phase1", "route": "/College/collegeinfo",
-    "sections": ["ข้อมูลเกี่ยวกับสถานศึกษา ปีการศึกษา 2568", "ชื่อสถานศึกษา", "ประเภทหลักสูตรที่เปิดสอน", "ที่ตั้ง", "ประวัติสถานศึกษาโดยสังเขป", "การจัดการศึกษา", "สภาพชุมชน เศรษฐกิจ และสังคมของสถานศึกษา", "สภาพชุมชน", "สภาพเศรษฐกิจ", "สภาพสังคม", "ปรัชญา อัตลักษณ์ เอกลักษณ์ ของสถานศึกษา", "ปรัชญา", "อัตลักษณ์", "เอกลักษณ์", "วิสัยทัศน์", "พันธกิจ", "เป้าประสงค์", "ยุทธศาสตร์", "กลยุทธ์", "แผนภูมิบริหารสถานศึกษา orgStructure2025.jpg"], "tables": []
-  },
-  "Phase1_02_ข้อมูลบุคลากร": {
-    "id": "Phase1_02_ข้อมูลบุคลากร", "name": "ข้อมูลบุคลากร", "phase": "Phase1", "route": "/College/personnel",
-    "sections": ["ข้อมูลบุคลากร ปีการศึกษา 2568", "จำนวนครูและบุคลากร", "การพัฒนาตนเองและพัฒนาวิชาชีพ", "การพัฒนาตนเองและพัฒนาวิชาชีพ"],
-    "tables": [["#", "ประเภทบุคลากร", "จำนวน", "มีใบประกอบวิชาชีพ", "สอนตรงสาขา"]]
-  },
-  "Phase1_03_ข้อมูลผู้เรียน": {
-    "id": "Phase1_03_ข้อมูลผู้เรียน", "name": "ข้อมูลผู้เรียน", "phase": "Phase1", "route": "/College/student",
-    "sections": ["ข้อมูลผู้เรียน ปีการศึกษา 2568", "ระดับประกาศนียบัตรวิชาชีพ (ปวช.)", "ระดับประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.)", "ผู้เรียนหลักสูตรระยะสั้น", "หลักสูตรระยะสั้น"],
-    "tables": [["ระดับชั้น", "ปกติ", "ทวิภาคี", "ทวิศึกษา", "รวม"], ["ระดับชั้น", "ปกติ", "ทวิภาคี", "รวม"]]
-  },
-  "Phase1_04_ข้อมูลผู้สำเร็จการศึกษา": {
-    "id": "Phase1_04_ข้อมูลผู้สำเร็จการศึกษา", "name": "ข้อมูลผู้สำเร็จการศึกษา", "phase": "Phase1", "route": "/College/graduate",
-    "sections": ["ข้อมูลผู้สำเร็จการศึกษา ปีการศึกษา 2568", "ผู้สำเร็จการศึกษา", "ระดับ ปวช.", "ระดับ ปวส.", "การพัฒนาสมรรถนะผู้สำเร็จการศึกษา", "ระดับ ปวช.", "ระดับ ปวส.", "การทดสอบหรือประเมินสมรรถนะด้านภาษา", "ปีการศึกษา 2568", "การทดสอบหรือประเมินสมรรถนะด้านดิจิทัล", "ปีการศึกษา 2568", "การทดสอบหรือประเมินสมรรถนะตามมาตรฐานอาชีพ", "ปีการศึกษา 2568", "การประกวดหรือแข่งขันทักษะทางวิชาชีพ", "สมรรถนะในการเป็นผู้ประกอบการหรือประกอบอาชีพอิสระ", "ระดับ ปวช.", "ระดับ ปวส.", "การประเมินมาตรฐานวิชาชีพ", "ระดับ ปวช.", "ระดับ ปวส.", "การมีงานทำและศึกษาต่อของผู้สำเร็จการศึกษา", "ระดับ ปวช.", "ระดับ ปวส.", "การติดตามความพึงพอใจ และคุณภาพของผู้สำเร็จการศึกษา"], "tables": []
-  },
-  "Phase1_05_ข้อมูลหลักสูตร": {
-    "id": "Phase1_05_ข้อมูลหลักสูตร", "name": "ข้อมูลหลักสูตร", "phase": "Phase1", "route": "/College/course",
-    "sections": ["ข้อมูลหลักสูตรที่จัดการเรียนการสอน ปีการศึกษา 2568", "ข้อมูลการพัฒนาหลักสูตร ปีการศึกษา 2568", "การพัฒนาหลักสูตร", "ระดับ ปวช.", "ระดับ ปวส.", "ครูผู้สอน"],
-    "tables": [["#", "หลักสูตร", "สาขาวิชา", "จำนวนผู้เรียน", "ปกติ", "ทวิภาคี", "รวม"]]
-  },
-  "Phase1_06_ข้อมูลการจัดการเรียนการสอน": {
-    "id": "Phase1_06_ข้อมูลการจัดการเรียนการสอน", "name": "ข้อมูลการจัดการเรียนการสอน", "phase": "Phase1", "route": "/College/teaching",
-    "sections": ["ข้อมูลการจัดการเรียนการสอน ปีการศึกษา 2568", "การจัดการเรียนรู้ที่เน้นผู้เรียนเป็นสำคัญ", "การพัฒนาคุณภาพแผนการจัดการเรียนรู้ที่เน้นผู้เรียนเป็นสำคัญ", "การจัดการเรียนการสอนด้วยเทคนิควิธีการสอนที่หลากหลาย", "การส่งเสริมให้ผู้เรียนได้ฝึกประสบการณ์สมรรถนะวิชาชีพหรือฝึกอาชีพ", "การบริหารจัดการชั้นเรียนที่เหมาะสม", "การบริหารจัดการชั้นเรียน", "การจัดการอาชีวศึกษาระบบทวิภาคี", "การจัดการอาชีวศึกษาระบบทวิภาคี"], "tables": []
-  },
-  "Phase1_07_ข้อมูลนวัตกรรมและงานวิจัย": {
-    "id": "Phase1_07_ข้อมูลนวัตกรรมและงานวิจัย", "name": "ข้อมูลนวัตกรรมและงานวิจัย", "phase": "Phase1", "route": "/College/innovation",
-    "sections": ["ข้อมูลนวัตกรรมและงานวิจัย ปีการศึกษา 2568", "การส่งเสริม และสนับสนุนการพัฒนานวัตกรรม สิ่งประดิษฐ์ งานสร้างสรรค์ และงานวิจัย", "การส่งเสริม และสนับสนุนการพัฒนานวัตกรรม สิ่งประดิษฐ์ งานสร้างสรรค์ และงานวิจัย"], "tables": []
-  },
-  "Phase1_08_ข้อมูลการบริการชุมชนจิตอาสา": {
-    "id": "Phase1_08_ข้อมูลการบริการชุมชนจิตอาสา", "name": "ข้อมูลการบริการชุมชนจิตอาสา", "phase": "Phase1", "route": "/College/volunteerservice",
-    "sections": ["โครงการ กิจกรรมการบริการชุมชนหรือจิตอาสา ปีการศึกษา 2568"],
-    "tables": [["#", "โครงการ กิจกรรมการบริการชุมชนหรือจิตอาสา", "ผลการดำเนินงาน"]]
-  },
-  "Phase1_09_ข้อมูลการระดมทรัพยากร": {
-    "id": "Phase1_09_ข้อมูลการระดมทรัพยากร", "name": "ข้อมูลการระดมทรัพยากร", "phase": "Phase1", "route": "/College/mobilization",
-    "sections": ["ข้อมูลการระดมทรัพยากร และความร่วมมือ ปีการศึกษา 2568", "การระดมทรัพยากร", "การระดมทรัพยากรจากภาคีเครือข่ายความร่วมมือในการจัดการศึกษา"], "tables": []
-  },
-  "Phase1_10_ข้อมูลอาคารสถานที่": {
-    "id": "Phase1_10_ข้อมูลอาคารสถานที่", "name": "ข้อมูลอาคารสถานที่", "phase": "Phase1", "route": "/College/buildings",
-    "sections": ["ข้อมูลอาคารสถานที่ และแหล่งเรียนรู้ ปีการศึกษา 2568", "การพัฒนาอาคารสถานที่ ห้องเรียน ห้องปฏิบัติการ โรงฝึกงานหรืองานฟาร์ม", "อาคารสถานที่ ห้องเรียน ห้องปฏิบัติการ โรงฝึกงานหรืองานฟาร์ม", "การพัฒนาระบบสาธารณูปโภคพื้นฐาน", "ระบบสาธารณูปโภคพื้นฐาน", "การพัฒนาแหล่งเรียนรู้และศูนย์วิทยบริการ", "การพัฒนาแหล่งเรียนรู้และศูนย์วิทยบริการ"], "tables": []
-  },
-  "Phase1_11_ข้อมูลงบประมาณ": {
-    "id": "Phase1_11_ข้อมูลงบประมาณ", "name": "ข้อมูลงบประมาณ", "phase": "Phase1", "route": "/College/budget",
-    "sections": ["ข้อมูลงบประมาณ ปีการศึกษา 2568", "งบประมาณ", "รายการงบประมาณ"], "tables": []
-  },
-  "Phase1_12_ข้อมูลการบริหารจัดการ": {
-    "id": "Phase1_12_ข้อมูลการบริหารจัดการ", "name": "ข้อมูลการบริหารจัดการ", "phase": "Phase1", "route": "/College/management",
-    "sections": ["ข้อมูลการบริหารจัดการ ปีการศึกษา 2568", "การบริหารจัดการสถานศึกษา", "การบริหารจัดการสถานศึกษาแบบมีส่วนร่วม", "ระบบดูแลช่วยเหลือผู้เรียน", "การพัฒนาระบบดูแลช่วยเหลือผู้เรียน", "การบริหารจัดการระบบข้อมูลและสารสนเทศ", "การบริหารจัดการระบบข้อมูลและสารสนเทศเพื่อการบริหารจัดการสถานศึกษา", "การบริหารจัดการสถานศึกษาตามนโยบายที่หน่วยงานต้นสังกัดมอบหมาย", "การบริหารจัดการสถานศึกษาตามนโยบายที่หน่วยงานต้นสังกัดมอบหมาย", "การบริหารศูนย์บ่มเพาะผู้ประกอบการอาชีวศึกษา", "การประเมินศูนย์บ่มเพาะผู้ประกอบการอาชีวศึกษา"], "tables": []
-  },
-  "Phase1_13_ข้อมูลผลงานของผู้เรียน": {
-    "id": "Phase1_13_ข้อมูลผลงานของผู้เรียน", "name": "ข้อมูลผลงานของผู้เรียน", "phase": "Phase1", "route": "/College/studentaward",
-    "sections": ["ข้อมูลรางวัลและผลงานของผู้เรียน ปีการศึกษา 2568"],
-    "tables": [["ลำดับ", "รางวัล", "ผลงาน", "ระดับ", "เจ้าของผลงาน"]]
-  },
-  "Phase1_14_ข้อมูลผลงานของครูและบุคลากร": {
-    "id": "Phase1_14_ข้อมูลผลงานของครูและบุคลากร", "name": "ข้อมูลผลงานของครูและบุคลากร", "phase": "Phase1", "route": "/College/teacheraward",
-    "sections": ["ข้อมูลรางวัลและผลงานของครูและบุคลากรทางการศึกษา ปีการศึกษา 2568"],
-    "tables": [["ลำดับ", "รางวัล", "ผลงาน", "ระดับ", "เจ้าของผลงาน"]]
-  },
-  "Phase1_15_ข้อมูลผลงานของสถานศึกษา": {
-    "id": "Phase1_15_ข้อมูลผลงานของสถานศึกษา", "name": "ข้อมูลผลงานของสถานศึกษา", "phase": "Phase1", "route": "/College/collegeaward",
-    "sections": ["ข้อมูลรางวัลและผลงานของสถานศึกษา ปีการศึกษา 2568"],
-    "tables": [["ลำดับ", "รางวัล", "ผลงาน", "ระดับ"]]
-  },
-  "Phase1_16_ข้อมูลแผนการดำเนินงาน": {
-    "id": "Phase1_16_ข้อมูลแผนการดำเนินงาน", "name": "ข้อมูลแผนการดำเนินงาน", "phase": "Phase1", "route": "/College/collegeplan",
-    "sections": ["ข้อมูลแผนการดำเนินงาน ปีการศึกษา 2568", "แผนพัฒนาคุณภาพการจัดการศึกษาของสถานศึกษา และแผนปฏิบัติการประจำปี", "แผนพัฒนาคุณภาพการจัดการศึกษาของสถานศึกษา", "แผนปฏิบัติการประจำปี"], "tables": []
-  },
-  "Phase2_01_กำหนดมาตรฐานและประเด็น": {
-    "id": "Phase2_01_กำหนดมาตรฐานและประเด็น", "name": "กำหนดมาตรฐานและประเด็น", "phase": "Phase2", "route": "/College/standard",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "มาตรฐานที่ 2 การจัดการอาชีวศึกษา", "ประเด็นที่ 2.1 ด้านหลักสูตรอาชีวศึกษา", "ประเด็นที่ 2.2 ด้านการจัดการเรียนการสอนอาชีวศึกษา", "ประเด็นที่ 2.3 ด้านการบริหารจัดการ", "ประเด็นที่ 2.4 ด้านการนำนโยบายสู่การปฏิบัติ", "มาตรฐานที่ 3 การสร้างสังคมแห่งการเรียนรู้", "ประเด็นที่ 3.1 ด้านความร่วมมือในการสร้างสังคมแห่งการเรียนรู้", "ประเด็นที่ 3.2 ด้านนวัตกรรม สิ่งประดิษฐ์ งานสร้างสรรค์ งานวิจัย"], "tables": []
-  },
-  "Phase2_02_กำหนดค่าเป้าหมาย": {
-    "id": "Phase2_02_กำหนดค่าเป้าหมาย", "name": "กำหนดค่าเป้าหมาย", "phase": "Phase2", "route": "/College/missiongoal",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "มาตรฐานที่ 2 การจัดการอาชีวศึกษา", "ประเด็นที่ 2.1 ด้านหลักสูตรอาชีวศึกษา", "ประเด็นที่ 2.2 ด้านการจัดการเรียนการสอนอาชีวศึกษา", "ประเด็นที่ 2.3 ด้านการบริหารจัดการ", "ประเด็นที่ 2.4 ด้านการนำนโยบายสู่การปฏิบัติ", "มาตรฐานที่ 3 การสร้างสังคมแห่งการเรียนรู้", "ประเด็นที่ 3.1 ด้านความร่วมมือในการสร้างสังคมแห่งการเรียนรู้", "ประเด็นที่ 3.2 ด้านนวัตกรรม สิ่งประดิษฐ์ งานสร้างสรรค์ งานวิจัย"],
-    "tables": [["ภารกิจที่", "ชื่อภารกิจ", "เป้าหมาย", "หน่วย", "ค่าเป้าหมายกลาง", "ค่าเป้าหมายสถานศึกษา"], ["ภารกิจที่", "ชื่อภารกิจ", "เป้าหมาย", "หน่วย", "ค่าเป้าหมายกลาง", "ค่าเป้าหมายสถานศึกษา"], ["ภารกิจที่", "ชื่อภารกิจ", "เป้าหมาย", "หน่วย", "ค่าเป้าหมายกลาง", "ค่าเป้าหมายสถานศึกษา"], ["ภารกิจที่", "ชื่อภารกิจ", "เป้าหมาย", "หน่วย", "ค่าเป้าหมายกลาง", "ค่าเป้าหมายสถานศึกษา"]]
-  },
-  "Phase2_03_ผลการขับเคลื่อนระบบการประกันคุณภาพ": {
-    "id": "Phase2_03_ผลการขับเคลื่อนระบบการประกันคุณภาพ", "name": "ผลการขับเคลื่อนระบบการประกันคุณภาพ", "phase": "Phase2", "route": "/College/qa",
-    "sections": [],
-    "tables": [["ที่", "การขับเคลื่อนระบบประกันคุณภาพภายใน", "ผลการดำเนินการขับเคลื่อน", "ดำเนินการ", "ไม่ได้ดำเนินการ"], ["#", "แผนงาน โครงการ กิจกรรมเพื่อยกระดับคุณภาพฯ", "ผลการดำเนินงาน"]]
-  },
-  "Phase2_04_ผลการดำเนินงานตามภารกิจ_มาตรฐานที่ 1": {
-    "id": "Phase2_04_ผลการดำเนินงานตามภารกิจ_มาตรฐานที่ 1", "name": "ผลการดำเนินงานตามภารกิจ มาตรฐานที่ 1", "phase": "Phase2", "route": "/College/mission",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)"], "tables": []
-  },
-  "Phase2_04_ผลการดำเนินงานตามภารกิจ_มาตรฐานที่ 2": {
-    "id": "Phase2_04_ผลการดำเนินงานตามภารกิจ_มาตรฐานที่ 2", "name": "ผลการดำเนินงานตามภารกิจ มาตรฐานที่ 2", "phase": "Phase2", "route": "/College/mission",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)"], "tables": []
-  },
-  "Phase2_04_ผลการดำเนินงานตามภารกิจ_มาตรฐานที่ 3": {
-    "id": "Phase2_04_ผลการดำเนินงานตามภารกิจ_มาตรฐานที่ 3", "name": "ผลการดำเนินงานตามภารกิจ มาตรฐานที่ 3", "phase": "Phase2", "route": "/College/mission",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาอาชีวศึกษา(PDCA)", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)", "แนวทางการพัฒนาคุณภาพการศึกษาของสถานศึกษาอาชีวศึกษา(PDCA)", "ผลการพัฒนาคุณภาพการศึกษาของสถานศึกษา(ผลสัมฤทธิ์)"], "tables": []
-  },
-  "Phase2_05_ผลการประเมินรายประเด็น_มาตรฐานที่ 1": {
-    "id": "Phase2_05_ผลการประเมินรายประเด็น_มาตรฐานที่ 1", "name": "ผลการประเมินรายประเด็น มาตรฐานที่ 1", "phase": "Phase2", "route": "/College/topic",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "จุดเด่นด้านความรู้", "จุดที่ควรพัฒนาด้านความรู้", "ข้อเสนอแนะเพื่อการพัฒนาด้านความรู้", "ผลประเมินด้านความรู้", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "จุดเด่นด้านทักษะและการประยุกต์ใช้", "จุดที่ควรพัฒนาด้านทักษะและการประยุกต์ใช้", "ข้อเสนอแนะเพื่อการพัฒนาด้านทักษะและการประยุกต์ใช้", "ผลประเมินด้านทักษะและการประยุกต์ใช้", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "จุดเด่นด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "จุดที่ควรพัฒนาด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ข้อเสนอแนะเพื่อการพัฒนาด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ผลประเมินด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "มาตรฐานที่ 2 การจัดการอาชีวศึกษา", "ประเด็นที่ 2.1 ด้านหลักสูตรอาชีวศึกษา", "จุดเด่นด้านหลักสูตรอาชีวศึกษา", "จุดที่ควรพัฒนาด้านหลักสูตรอาชีวศึกษา", "ข้อเสนอแนะเพื่อการพัฒนาด้านหลักสูตรอาชีวศึกษา", "ผลประเมินด้านหลักสูตรอาชีวศึกษา", "ประเด็นที่ 2.2 ด้านการจัดการเรียนการสอนอาชีวศึกษา", "จุดเด่นด้านการจัดการเรียนการสอนอาชีวศึกษา", "จุดที่ควรพัฒนาด้านการจัดการเรียนการสอนอาชีวศึกษา"],
-    "tables": [["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"]]
-  },
-  "Phase2_05_ผลการประเมินรายประเด็น_มาตรฐานที่ 2": {
-    "id": "Phase2_05_ผลการประเมินรายประเด็น_มาตรฐานที่ 2", "name": "ผลการประเมินรายประเด็น มาตรฐานที่ 2", "phase": "Phase2", "route": "/College/topic",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "จุดเด่นด้านความรู้", "จุดที่ควรพัฒนาด้านความรู้", "ข้อเสนอแนะเพื่อการพัฒนาด้านความรู้", "ผลประเมินด้านความรู้", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "จุดเด่นด้านทักษะและการประยุกต์ใช้", "จุดที่ควรพัฒนาด้านทักษะและการประยุกต์ใช้", "ข้อเสนอแนะเพื่อการพัฒนาด้านทักษะและการประยุกต์ใช้", "ผลประเมินด้านทักษะและการประยุกต์ใช้", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "จุดเด่นด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "จุดที่ควรพัฒนาด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ข้อเสนอแนะเพื่อการพัฒนาด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ผลประเมินด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "มาตรฐานที่ 2 การจัดการอาชีวศึกษา", "ประเด็นที่ 2.1 ด้านหลักสูตรอาชีวศึกษา", "จุดเด่นด้านหลักสูตรอาชีวศึกษา", "จุดที่ควรพัฒนาด้านหลักสูตรอาชีวศึกษา", "ข้อเสนอแนะเพื่อการพัฒนาด้านหลักสูตรอาชีวศึกษา", "ผลประเมินด้านหลักสูตรอาชีวศึกษา", "ประเด็นที่ 2.2 ด้านการจัดการเรียนการสอนอาชีวศึกษา", "จุดเด่นด้านการจัดการเรียนการสอนอาชีวศึกษา", "จุดที่ควรพัฒนาด้านการจัดการเรียนการสอนอาชีวศึกษา"],
-    "tables": [["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"]]
-  },
-  "Phase2_05_ผลการประเมินรายประเด็น_มาตรฐานที่ 3": {
-    "id": "Phase2_05_ผลการประเมินรายประเด็น_มาตรฐานที่ 3", "name": "ผลการประเมินรายประเด็น มาตรฐานที่ 3", "phase": "Phase2", "route": "/College/topic",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "จุดเด่นด้านความรู้", "จุดที่ควรพัฒนาด้านความรู้", "ข้อเสนอแนะเพื่อการพัฒนาด้านความรู้", "ผลประเมินด้านความรู้", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "จุดเด่นด้านทักษะและการประยุกต์ใช้", "จุดที่ควรพัฒนาด้านทักษะและการประยุกต์ใช้", "ข้อเสนอแนะเพื่อการพัฒนาด้านทักษะและการประยุกต์ใช้", "ผลประเมินด้านทักษะและการประยุกต์ใช้", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "จุดเด่นด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "จุดที่ควรพัฒนาด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ข้อเสนอแนะเพื่อการพัฒนาด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "ผลประเมินด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "มาตรฐานที่ 2 การจัดการอาชีวศึกษา", "ประเด็นที่ 2.1 ด้านหลักสูตรอาชีวศึกษา", "จุดเด่นด้านหลักสูตรอาชีวศึกษา", "จุดที่ควรพัฒนาด้านหลักสูตรอาชีวศึกษา", "ข้อเสนอแนะเพื่อการพัฒนาด้านหลักสูตรอาชีวศึกษา", "ผลประเมินด้านหลักสูตรอาชีวศึกษา", "ประเด็นที่ 2.2 ด้านการจัดการเรียนการสอนอาชีวศึกษา", "จุดเด่นด้านการจัดการเรียนการสอนอาชีวศึกษา", "จุดที่ควรพัฒนาด้านการจัดการเรียนการสอนอาชีวศึกษา"],
-    "tables": [["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"], ["#", "ชื่อ/หัวข้อเรื่อง"]]
-  },
-  "Phase2_06_สรุปผลการประกันคุณภาพ": {
-    "id": "Phase2_06_สรุปผลการประกันคุณภาพ", "name": "สรุปผลการประกันคุณภาพ", "phase": "Phase2", "route": "/College/result",
-    "sections": ["ข้อมูลผลการประกันคุณภาพการศึกษา ปีการศึกษา 2568"],
-    "tables": [["ที่", "มาตรฐาน / ประเด็นการประเมิน", "คะแนนจากการประเมินรายด้านหรือประเด็นการประเมิน", "คะแนนเฉลี่ย", "ระดับคุณภาพ"]]
-  },
-  "Phase2_07_แนวทางพัฒนาเพื่อยกระดับคุณภาพ": {
-    "id": "Phase2_07_แนวทางพัฒนาเพื่อยกระดับคุณภาพ", "name": "แนวทางพัฒนาเพื่อยกระดับคุณภาพ", "phase": "Phase2", "route": "/College/qaimprove",
-    "sections": ["มาตรฐานที่ 1 คุณลักษณะของผู้สำเร็จการศึกษาอาชีวศึกษาที่พึงประสงค์", "ประเด็นที่ 1.1 ด้านความรู้", "ประเด็นที่ 1.2 ด้านทักษะและการประยุกต์ใช้", "ประเด็นที่ 1.3 ด้านคุณธรรม จริยธรรม และคุณลักษณะที่พึงประสงค์", "มาตรฐานที่ 2 การจัดการอาชีวศึกษา", "ประเด็นที่ 2.1 ด้านหลักสูตรอาชีวศึกษา", "ประเด็นที่ 2.2 ด้านการจัดการเรียนการสอนอาชีวศึกษา", "ประเด็นที่ 2.3 ด้านการบริหารจัดการ", "ประเด็นที่ 2.4 ด้านการนำนโยบายสู่การปฏิบัติ", "มาตรฐานที่ 3 การสร้างสังคมแห่งการเรียนรู้", "ประเด็นที่ 3.1 ด้านความร่วมมือในการสร้างสังคมแห่งการเรียนรู้", "ประเด็นที่ 3.2 ด้านนวัตกรรม สิ่งประดิษฐ์ งานสร้างสรรค์ งานวิจัย"],
-    "tables": [["#", "แผนงาน โครงการ กิจกรรมเพื่อยกระดับคุณภาพฯ", "เป้าหมายของการพัฒนา"], ["#", "แผนงาน โครงการ กิจกรรมเพื่อยกระดับคุณภาพฯ", "เป้าหมายของการพัฒนา"], ["#", "แผนงาน โครงการ กิจกรรมเพื่อยกระดับคุณภาพฯ", "เป้าหมายของการพัฒนา"], ["#", "แผนงาน โครงการ กิจกรรมเพื่อยกระดับคุณภาพฯ", "เป้าหมายของการพัฒนา"]]
-  }
-};
-
-var _iqaPendingChanges = 0;
-
-function _updateIqaSaveBtn() {
-  var btn = document.querySelector('.qa-tab-content [onclick="iqaConfirmSave()"]');
-  if (!btn) btn = document.querySelector('[onclick="iqaConfirmSave()"]');
-  if (!btn) return;
-  if (_iqaPendingChanges > 0) {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-check-all me-1"></i>บันทึก ' + _iqaPendingChanges + ' การเปลี่ยนแปลง';
-    btn.classList.remove("qa-btn-ghost");
-    btn.classList.add("qa-btn-primary");
-  } else {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-check-all me-1"></i>ไม่มีการเปลี่ยนแปลง';
-    btn.classList.remove("qa-btn-primary");
-    btn.classList.add("qa-btn-ghost");
-  }
-}
-
-function _loadIqaMapping() {
-  if (!APP.iqaMapping) APP.iqaMapping = {};
-  if (APP.theme && APP.theme.iqaMapping) {
-    try { APP.iqaMapping = JSON.parse(APP.theme.iqaMapping); } catch(e) { APP.iqaMapping = {}; }
-  }
-}
-
-function _iqaGetUniquePages(phase) {
-  var seen = {}, result = [];
-  Object.values(IQA_PAGES).forEach(function(p) {
-    if (p.phase !== phase) return;
-    if (!seen[p.route]) { seen[p.route] = true; result.push(p); }
+// ── คำนวณ APP._iqaPages และ APP.iqaMapping จาก schema ────────
+// เรียกทุกครั้งที่ schema เปลี่ยน เพื่อให้ rendering functions ใช้งานได้
+function _computeFromSchema(schema) {
+  if (!schema || !schema.phases) return;
+  var pages = {}, mapping = {};
+  (schema.phases || []).forEach(function(phase) {
+    (phase.pages || []).forEach(function(page) {
+      pages[page.pageId] = {
+        id:        page.pageId,
+        name:      page.pageName,
+        phase:     phase.phaseId,
+        phaseName: phase.phaseName,
+        route:     page.route || "",
+        sections:  (page.items || []).map(function(it){ return it.label; }),
+        tables:    []
+      };
+      mapping[page.pageId] = {};
+      (page.items || []).forEach(function(item) {
+        if (item.formId) {
+          mapping[page.pageId][item.label] = { formId: item.formId, fieldKey: item.fieldKey || "" };
+        }
+      });
+    });
   });
-  return result;
+  APP._iqaPages  = pages;
+  APP.iqaMapping = mapping;
 }
+
+// ── Backward Compat: _iqaGetUniquePages ────────────────────
+// ใช้กับ code เดิมที่อาจเรียก Phase1/Phase2 โดยตรง
+function _iqaGetUniquePages(phaseId) {
+  if (!APP._iqaPages) _computeFromSchema(APP.iqaSchema || { phases: [] });
+  return Object.values(APP._iqaPages || {}).filter(function(p){ return p.phase === phaseId; });
+}
+
+// ════════════════════════════════════════════════════════════
+// Task 1: IQA Schema Builder UI
+// ════════════════════════════════════════════════════════════
 
 function initIqaTab() {
-  if (!APP.iqaMapping) APP.iqaMapping = {};
-  _iqaShowStep1();
+  if (!APP.iqaSchema) APP.iqaSchema = { phases: [] };
+  _computeFromSchema(APP.iqaSchema);
+  _iqaBuilderActivePhaseIdx = 0;
+  _iqaBuilderActivePageKey  = -1;
+
+  // ตั้งค่า container structure ใน iqa-builder-wrap (ถ้ายังไม่มี)
+  var wrap = document.getElementById("iqa-builder-wrap");
+  if (wrap && !document.getElementById("iqa-builder-area")) {
+    wrap.innerHTML = '<div id="iqa-builder-area"></div>'
+      + '<div id="iqa-preview-area" style="display:none;">'
+      + '<div id="iqa-preview-container"></div></div>';
+  }
+  _iqaBuilderRender();
 }
 
-function iqaSelectPhase(phase) {
-  _iqaCurrentPhase = phase;
-  var b1 = document.getElementById("iqa-phase1-btn");
-  var b2 = document.getElementById("iqa-phase2-btn");
-  if (b1) b1.className = phase === "Phase1" ? "qa-btn-primary btn-sm" : "qa-btn-ghost btn-sm";
-  if (b2) b2.className = phase === "Phase2" ? "qa-btn-primary btn-sm" : "qa-btn-ghost btn-sm";
-  _iqaShowStep1();
+// ── สลับ Mode: builder ↔ preview ──────────────────────────
+function iqaBuilderSetMode(mode) {
+  var bArea = document.getElementById("iqa-builder-area");
+  var pArea = document.getElementById("iqa-preview-area");
+  var bBtn  = document.getElementById("iqa-mode-build-btn");
+  var pBtn  = document.getElementById("iqa-mode-preview-btn");
+  if (bBtn) bBtn.className = mode === "build"   ? "qa-btn-primary btn-sm" : "qa-btn-ghost btn-sm";
+  if (pBtn) pBtn.className = mode === "preview" ? "qa-btn-primary btn-sm" : "qa-btn-ghost btn-sm";
+  if (bArea) bArea.style.display = mode === "build" ? "block" : "none";
+  if (pArea) pArea.style.display = mode === "preview" ? "block" : "none";
+  if (mode === "preview") {
+    _computeFromSchema(APP.iqaSchema);
+    renderIqaPublicView("iqa-preview-container");
+  }
 }
 
-function _iqaShowStep1() {
-  var container = document.getElementById("iqa-page-list");
-  if (!container) return;
+// ── Render Builder ─────────────────────────────────────────
+function _iqaBuilderRender() {
+  var c = document.getElementById("iqa-builder-area");
+  if (!c) return;
+  var schema = APP.iqaSchema || { phases: [] };
+  var phases = schema.phases || [];
 
-  var pages = _iqaGetUniquePages(_iqaCurrentPhase);
+  // Phase tabs
+  var tabsHtml = '<div class="d-flex gap-2 flex-wrap align-items-center mb-3" style="border-bottom:1px solid var(--border);padding-bottom:10px;">';
+  phases.forEach(function(phase, pi) {
+    tabsHtml += '<button class="'+(pi===_iqaBuilderActivePhaseIdx?"qa-btn-primary":"qa-btn-ghost")+' btn-sm" '
+      +'onclick="_iqaBuilderSelectPhase('+pi+')">'
+      +'<i class="bi bi-layers-fill me-1"></i>'+escHtml(phase.phaseName)+'</button>';
+  });
+  tabsHtml += '<button class="qa-btn-ghost btn-sm" style="border-style:dashed;" onclick="iqaShowAddPhaseModal()">'
+    +'<i class="bi bi-plus-circle-fill me-1"></i>เพิ่ม Phase</button></div>';
 
-  var html = '<div class="qa-iqa-step mb-4">'
-    + '<div class="qa-iqa-step-num">1</div>'
-    + '<div><div class="qa-iqa-step-label">เลือกหน้า IQA ที่ต้องการ Mapping</div>'
-    + '<div class="qa-iqa-step-sub">กดที่หน้าใดหน้าหนึ่ง เพื่อกำหนดว่าข้อมูลจาก Form ใดตรงกับหน้านั้น</div></div>'
-    + '<div class="qa-iqa-step-line"></div>'
-    + '<div class="qa-iqa-step-num" style="background:var(--border);color:var(--txt-muted);">2</div>'
-    + '<div><div class="qa-iqa-step-label" style="color:var(--txt-muted);">Map Field</div>'
-    + '<div class="qa-iqa-step-sub">เลือกว่า field ใดตรงกับหัวข้อ IQA</div></div>'
-    + '</div>';
-
-  if (!pages.length) {
-    container.innerHTML = html + '<div class="qa-alert qa-alert-info"><i class="bi bi-info-circle-fill"></i><span>ไม่มีข้อมูล</span></div>';
-    return;
+  // Content
+  var content = "";
+  if (!phases.length) {
+    content = '<div class="qa-alert qa-alert-info"><i class="bi bi-info-circle-fill"></i>'
+      +'<span>ยังไม่มี Phase — กดปุ่ม <strong>เพิ่ม Phase</strong> เพื่อเริ่มสร้าง IQA Schema</span></div>';
+  } else if (_iqaBuilderActivePhaseIdx < phases.length) {
+    content = _iqaRenderPhaseContent(_iqaBuilderActivePhaseIdx);
   }
 
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;">';
-  pages.forEach(function(page) {
-    var mapping  = APP.iqaMapping[page.id] || {};
-    var fieldCount = 0;
-    Object.values(mapping).forEach(function(v){ if(v && v.formId) fieldCount++; });
-    var secCount = page.sections ? page.sections.filter(function(s){return s.trim();}).length : 0;
-    var pct = secCount > 0 ? Math.round(fieldCount/secCount*100) : 0;
+  // Footer stats + save
+  var totalPages = phases.reduce(function(s,ph){return s+(ph.pages||[]).length;},0);
+  var totalItems = phases.reduce(function(s,ph){return s+(ph.pages||[]).reduce(function(ss,pg){return ss+(pg.items||[]).length;},0);},0);
+  var footer = '<div class="d-flex justify-content-between align-items-center mt-4 pt-3" style="border-top:1px solid var(--border);">'
+    +'<span class="text-muted small"><i class="bi bi-diagram-3 me-1"></i>'
+    +phases.length+' Phases &bull; '+totalPages+' Pages &bull; '+totalItems+' Items</span>'
+    +'<button class="qa-btn-success" onclick="iqaSaveSchema()" id="iqa-save-schema-btn">'
+    +'<i class="bi bi-save-fill me-1"></i>บันทึก Schema</button></div>';
 
-    var statusColor = fieldCount === 0 ? 'var(--border)' : fieldCount >= secCount ? 'var(--success)' : 'var(--warning)';
-    var statusLabel = fieldCount === 0 ? 'ยังไม่ Mapped'
-      : fieldCount >= secCount ? 'Mapped ครบ'
-      : 'Mapped '+fieldCount+'/'+secCount;
-
-    html += '<div class="qa-iqa-pub-card" style="cursor:pointer;transition:all .2s;" '
-      + 'onclick="iqaGoStep2(\''+escHtml(page.id)+'\')"'
-      + ' onmouseover="this.style.borderColor=\'var(--primary)\';this.style.transform=\'translateY(-2px)\'"'
-      + ' onmouseout="this.style.borderColor=\'\';this.style.transform=\'\'">'
-      + '<div style="padding:12px 14px;">'
-      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
-      + '<span style="font-size:.7rem;background:var(--info-l);color:var(--info);padding:2px 8px;border-radius:20px;font-weight:700;">'+page.phase+'</span>'
-      + '<span style="font-weight:700;font-size:.86rem;color:var(--txt);flex:1;">'+escHtml(page.name)+'</span>'
-      + '<i class="bi bi-chevron-right" style="color:var(--txt-muted);font-size:.8rem;"></i>'
-      + '</div>'
-      + '<div style="font-size:.72rem;color:var(--txt-muted);font-family:monospace;margin-bottom:8px;">'+escHtml(page.route)+'</div>'
-      + '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<div style="flex:1;height:4px;background:var(--border);border-radius:2px;">'
-      + '<div style="height:4px;background:'+statusColor+';border-radius:2px;width:'+Math.min(pct,100)+'%;transition:width .4s;"></div>'
-      + '</div>'
-      + '<span style="font-size:.7rem;font-weight:700;color:'+statusColor+';white-space:nowrap;">'+statusLabel+'</span>'
-      + '</div>'
-      + '</div></div>';
-  });
-  html += '</div>';
-
-  container.innerHTML = html;
+  c.innerHTML = tabsHtml + content + footer;
 }
 
-function iqaGoStep2(pageId) {
-  _iqaSelectedPageId = pageId;
-  var page = IQA_PAGES[pageId];
-  if (!page) return;
+// ── Render Phase Content ────────────────────────────────────
+function _iqaRenderPhaseContent(phaseIdx) {
+  var phase = (APP.iqaSchema.phases || [])[phaseIdx];
+  if (!phase) return "";
 
-  var container = document.getElementById("iqa-page-list");
-  if (!container) return;
+  var totalPages = (phase.pages||[]).length;
+  var totalItems = (phase.pages||[]).reduce(function(s,pg){return s+(pg.items||[]).length;},0);
+  var mappedItems = (phase.pages||[]).reduce(function(s,pg){return s+(pg.items||[]).filter(function(it){return it.formId;}).length;},0);
 
-  var mapping = APP.iqaMapping[pageId] || {};
-  var fOpts = '<option value="">-- เลือก Form --</option>';
-  APP.forms.forEach(function(f) {
+  // Phase header card
+  var html = '<div class="qa-glass-card p-3 mb-3" style="border-left:4px solid var(--primary);">'
+    +'<div class="d-flex align-items-center gap-2 flex-wrap">'
+    +'<i class="bi bi-layers-fill text-primary"></i>'
+    +'<strong style="color:var(--txt);">'+escHtml(phase.phaseName)+'</strong>'
+    +'<span style="font-size:.72rem;background:var(--primary-ul);color:var(--primary);padding:1px 8px;border-radius:10px;">'
+    +mappedItems+'/'+totalItems+' Mapped &bull; '+totalPages+' Pages</span>'
+    +'<div class="ms-auto d-flex gap-1">'
+    +'<button class="qa-btn-ghost btn-sm" onclick="iqaShowEditPhaseModal('+phaseIdx+')" title="แก้ไขชื่อ Phase"><i class="bi bi-pencil-fill"></i></button>'
+    +'<button class="qa-btn-ghost btn-sm" style="color:var(--danger);" title="ลบ Phase" '
+    +'onclick="openDeleteConfirm(\'iqa-phase\',\''+phaseIdx+'\',\''+escHtml(phase.phaseName)+'\')"><i class="bi bi-trash-fill"></i></button>'
+    +'</div></div></div>';
+
+  // Pages
+  (phase.pages || []).forEach(function(page, pgi) {
+    var pageKey = phaseIdx * 1000 + pgi;
+    var isOpen  = (_iqaBuilderActivePageKey === pageKey);
+    var pMapped = (page.items||[]).filter(function(it){return it.formId;}).length;
+    var pTotal  = (page.items||[]).length;
+    var statusColor = pMapped === pTotal && pTotal > 0 ? "var(--success)" : pMapped > 0 ? "var(--warning)" : "var(--border)";
+
+    html += '<div class="qa-glass-card mb-2" style="border-left:3px solid '+statusColor+';">'
+      +'<div class="d-flex align-items-center gap-2 p-3" style="cursor:pointer;" onclick="_iqaTogglePage('+phaseIdx+','+pgi+')">'
+      +'<i class="bi bi-chevron-right" style="font-size:.8rem;color:var(--txt-muted);transition:.2s;'+(isOpen?"transform:rotate(90deg);":"")+'"></i>'
+      +'<i class="bi bi-file-earmark-text" style="color:var(--primary);"></i>'
+      +'<span style="font-weight:700;color:var(--txt);">'+escHtml(page.pageName)+'</span>'
+      +(page.route?'<span style="font-size:.68rem;font-family:monospace;color:var(--txt-muted);">'+escHtml(page.route)+'</span>':'')
+      +'<span class="ms-auto" style="font-size:.7rem;background:var(--surface-3);color:var(--txt-muted);padding:1px 8px;border-radius:10px;white-space:nowrap;">'
+      +pMapped+'/'+pTotal+' Mapped</span>'
+      +'<div class="d-flex gap-1 ms-2" onclick="event.stopPropagation();">'
+      +'<button class="qa-btn-ghost btn-sm" onclick="iqaShowEditPageModal('+phaseIdx+','+pgi+')" title="แก้ไข Page"><i class="bi bi-pencil-fill"></i></button>'
+      +'<button class="qa-btn-ghost btn-sm" style="color:var(--danger);" title="ลบ Page" '
+      +'onclick="openDeleteConfirm(\'iqa-page\',\''+phaseIdx+':'+pgi+'\',\''+escHtml(page.pageName)+'\')"><i class="bi bi-trash-fill"></i></button>'
+      +'</div></div>';
+
+    // Items section
+    html += '<div style="display:'+(isOpen?"block":"none")+';padding:0 12px 12px;" id="pg-items-'+phaseIdx+'-'+pgi+'">';
+    (page.items || []).forEach(function(item, iti) {
+      html += _iqaRenderItemRow(item, phaseIdx, pgi, iti);
+    });
+    html += '<button class="qa-btn-ghost btn-sm" style="border-style:dashed;font-size:.78rem;margin-top:6px;" '
+      +'onclick="iqaShowAddItemModal('+phaseIdx+','+pgi+')">'
+      +'<i class="bi bi-plus-circle me-1"></i>เพิ่ม Item / Label</button></div></div>';
+  });
+
+  html += '<button class="qa-btn-ghost btn-sm" style="border-style:dashed;margin-top:4px;" onclick="iqaShowAddPageModal('+phaseIdx+')">'
+    +'<i class="bi bi-plus-circle-fill me-1"></i>เพิ่ม Page</button>';
+
+  return html;
+}
+
+// ── Render Item Row (inline form/field dropdowns) ───────────
+function _iqaRenderItemRow(item, phi, pgi, iti) {
+  var isMapped = !!(item.formId);
+
+  // Form options
+  var fOpts = '<option value="">— เลือก Form —</option>';
+  (APP.forms || []).forEach(function(f) {
     if (!f.isActive) return;
-    var sec = null;
-    for (var si=0; si<APP.sections.length; si++) {
-      if (APP.sections[si].sectionId===f.sectionId){sec=APP.sections[si];break;}
-    }
-    fOpts += '<option value="'+escHtml(f.formId)+'">'+escHtml(f.formName+(sec?" ["+sec.sectionName+"]":""))+'</option>';
+    fOpts += '<option value="'+escHtml(f.formId)+'"'+(item.formId===f.formId?' selected':'')+'>'+escHtml(f.formName)+'</option>';
   });
 
-  var html = '<div style="margin-bottom:12px;">'
-    + '<button class="qa-btn-ghost btn-sm" onclick="_iqaShowStep1()">'
-    + '<i class="bi bi-arrow-left me-1"></i>กลับ Step 1</button></div>';
-
-  html += '<div class="qa-glass-card p-4">'
-    + '<h6 class="fw-700 mb-1"><i class="bi bi-diagram-3-fill text-info me-2"></i>'
-    + escHtml(page.name)+'</h6>'
-    + '<p class="text-muted small mb-4">'+escHtml(page.route)+'</p>';
-
-  var labels = page.sections || [];
-  labels.forEach(function(label, idx) {
-    if (!label || !label.trim()) return;
-    var cur = mapping[label] || {};
-    var curFormId  = cur.formId  || "";
-    var curFieldKey= cur.fieldKey|| "";
-    var isMapped   = !!(curFormId);
-
-    var fieldOpts = '<option value="">-- ทั้ง Form (ภาพรวม) --</option>';
-    if (curFormId) {
-      var curForm = null;
-      for (var fi=0;fi<APP.forms.length;fi++){if(APP.forms[fi].formId===curFormId){curForm=APP.forms[fi];break;}}
-      if (curForm) {
-        (curForm.fields||[]).forEach(function(fld){
-          if (!fld.label||fld.type==="divider") return;
-          fieldOpts += '<option value="'+escHtml(fld.key)+'"'+(curFieldKey===fld.key?" selected":"")+'>'+escHtml(fld.label)+'</option>';
-        });
-      }
+  // Field options (แสดงเฉพาะเมื่อมี formId)
+  var fieldOpts = '<option value="">— ทั้ง Form (ภาพรวม) —</option>';
+  if (item.formId) {
+    var selForm = (APP.forms||[]).find(function(f){return f.formId===item.formId;});
+    if (selForm) {
+      (selForm.fields||[]).forEach(function(fld){
+        if (!fld.label || fld.type==="divider") return;
+        fieldOpts += '<option value="'+escHtml(fld.key)+'"'+(item.fieldKey===fld.key?' selected':'')+'>'+escHtml(fld.label)+'</option>';
+      });
     }
+  }
 
-    // ✅ แก้ไข: เปลี่ยน display เป็น flex แทน block เพื่อให้ Layout ไม่เพี้ยน
-    html += '<div class="iqa-map-row'+(isMapped?" mapped":"")+'" id="iqa-map-row-'+idx+'" style="margin-bottom:16px;">'
-      + '<div class="iqa-map-label" style="font-size:.85rem; font-weight:700; margin-bottom:10px;">'+(isMapped?'<i class="bi bi-check-circle-fill text-success me-1"></i>':'')
-      + escHtml(label)+'</div>'
-      
-      + '<div class="iqa-map-controls" style="display:flex; flex-direction:column; gap:10px; padding-left:12px; border-left:2px solid var(--border);">'
-      
-      + '  <div class="iqa-step" style="display:flex; align-items:center; gap:12px;">'
-      + '    <span class="iqa-step-num" style="width:26px; height:26px; border-radius:50%; background:var(--primary); color:white; font-size:.8rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;">1</span>'
-      + '    <select class="qa-input iqa-form-sel" style="flex:1;font-size:.84rem; padding:8px 12px; background:var(--surface); border:1.5px solid var(--border); border-radius:var(--r-sm);"'
-      + '      data-pageid="'+escHtml(pageId)+'" data-label="'+escHtml(label)+'" data-idx="'+idx+'"'
-      + '      onchange="iqaOnFormChangeSel(this)">'
-      +      fOpts.replace('<option value="'+escHtml(curFormId)+'"', '<option value="'+escHtml(curFormId)+'" selected')
-      + '    </select>'
-      + '  </div>'
-      
-      // ตรงส่วนนี้คือตัวสำคัญที่เปลี่ยน "display:flex" แทน "none" เมื่อถูกเลือก
-      + '  <div class="iqa-step" id="iqa-field-row-'+idx+'" style="display:'+(curFormId?"flex":"none")+'; align-items:center; gap:12px;">'
-      + '    <span class="iqa-step-num iqa-step-num-2" style="width:26px; height:26px; border-radius:50%; background:var(--info); color:white; font-size:.8rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; opacity:0.9;">2</span>'
-      + '    <select class="qa-input iqa-field-sel" style="flex:1;font-size:.84rem; padding:8px 12px; background:var(--surface-3); border:1.5px dashed var(--border-2); border-radius:var(--r-sm);"'
-      + '      data-pageid="'+escHtml(pageId)+'" data-label="'+escHtml(label)+'"'
-      + '      onchange="iqaOnFieldChangeSel(this)">'
-      +      fieldOpts
-      + '    </select>'
-      + '  </div>'
-      
-      + (isMapped ? '<div style="margin-left:38px;"><div class="iqa-current-badge mt-1" style="padding:4px 10px; background:var(--success-l); color:var(--success); border-radius:var(--r-sm); font-size:.72rem; font-weight:700; display:inline-flex; align-items:center;"><i class="bi bi-check-circle-fill me-1"></i>Mapped สำเร็จ</div></div>' : "")
-      + '</div></div>';
-  });
-
-  html += '<div class="d-flex gap-2 mt-4">'
-    + '<button class="qa-btn-danger btn-sm"'
-    + ' data-pageid="'+escHtml(pageId)+'"'
-    + ' onclick="iqaClearPageMappingBtn(this)">'
-    + '<i class="bi bi-eraser-fill me-1"></i>ล้าง Mapping ทั้งหมด</button>'
-    + '</div>';
-
-  html += '</div>';
-  container.innerHTML = html;
+  return '<div class="d-flex align-items-flex-start gap-2 mb-2 p-2" style="background:var(--surface);border-radius:6px;border:1px solid var(--border);">'
+    +'<div style="flex-shrink:0;padding-top:4px;">'
+    +(isMapped?'<i class="bi bi-check-circle-fill" style="color:var(--success);"></i>'
+              :'<i class="bi bi-circle" style="color:var(--border-2);"></i>')
+    +'</div>'
+    +'<div style="flex:1;min-width:0;">'
+    +'<div style="font-size:.82rem;font-weight:600;color:var(--txt-2);margin-bottom:5px;">'+escHtml(item.label)+'</div>'
+    +'<div class="d-flex flex-wrap gap-2 align-items-center">'
+    +'<select class="qa-input" style="flex:1;min-width:150px;font-size:.78rem;padding:4px 8px;" '
+    +'onchange="iqaBuilderOnFormChange(this,'+phi+','+pgi+','+iti+')">'
+    +fOpts+'</select>'
+    +'<select class="qa-input" id="iqa-fld-'+phi+'-'+pgi+'-'+iti+'" '
+    +'style="flex:1;min-width:150px;font-size:.78rem;padding:4px 8px;display:'+(item.formId?"inline-block":"none")+'" '
+    +'onchange="iqaBuilderOnFieldChange(this,'+phi+','+pgi+','+iti+')">'
+    +fieldOpts+'</select>'
+    +'</div></div>'
+    +'<button class="qa-btn-ghost btn-sm" style="color:var(--danger);padding:4px 8px;flex-shrink:0;" '
+    +'onclick="iqaDeleteItem('+phi+','+pgi+','+iti+')" title="ลบ Item">'
+    +'<i class="bi bi-x-lg"></i></button></div>';
 }
 
-function iqaOnFormChangeSel(sel) {
-  var pageId = sel.getAttribute("data-pageid") || "";
-  var label  = sel.getAttribute("data-label")  || "";
-  var idx    = sel.getAttribute("data-idx")    || "0";
+// ── State helpers ───────────────────────────────────────────
+function _iqaBuilderSelectPhase(idx) {
+  _iqaBuilderActivePhaseIdx = idx;
+  _iqaBuilderActivePageKey  = -1;
+  _iqaBuilderRender();
+}
+function _iqaTogglePage(phaseIdx, pageIdx) {
+  var key = phaseIdx * 1000 + pageIdx;
+  _iqaBuilderActivePageKey = (_iqaBuilderActivePageKey === key) ? -1 : key;
+  _iqaBuilderRender();
+}
+
+// ── Phase CRUD ──────────────────────────────────────────────
+function iqaShowAddPhaseModal() {
+  document.getElementById("iqa-phase-edit-idx").value   = "-1";
+  document.getElementById("iqa-phase-name-input").value = "";
+  document.getElementById("iqa-phase-modal-title").innerText = "เพิ่ม Phase ใหม่";
+  new bootstrap.Modal(document.getElementById("modal-iqa-phase")).show();
+}
+function iqaShowEditPhaseModal(phaseIdx) {
+  var ph = (APP.iqaSchema.phases||[])[phaseIdx] || {};
+  document.getElementById("iqa-phase-edit-idx").value   = phaseIdx;
+  document.getElementById("iqa-phase-name-input").value = ph.phaseName || "";
+  document.getElementById("iqa-phase-modal-title").innerText = "แก้ไขชื่อ Phase";
+  new bootstrap.Modal(document.getElementById("modal-iqa-phase")).show();
+}
+function iqaPhaseModalSave() {
+  var name = (document.getElementById("iqa-phase-name-input").value || "").trim();
+  if (!name) { showToast("กรุณากรอกชื่อ Phase","warning"); return; }
+  var idx  = parseInt(document.getElementById("iqa-phase-edit-idx").value, 10);
+  if (!APP.iqaSchema) APP.iqaSchema = { phases: [] };
+  if (idx >= 0) {
+    APP.iqaSchema.phases[idx].phaseName = name;
+  } else {
+    APP.iqaSchema.phases.push({ phaseId: "PH_"+Date.now(), phaseName: name, pages: [] });
+    _iqaBuilderActivePhaseIdx = APP.iqaSchema.phases.length - 1;
+  }
+  var mi = bootstrap.Modal.getInstance(document.getElementById("modal-iqa-phase")); if(mi)mi.hide();
+  _iqaBuilderRender();
+}
+
+// ── Page CRUD ───────────────────────────────────────────────
+function iqaShowAddPageModal(phaseIdx) {
+  document.getElementById("iqa-page-edit-phase-idx").value = phaseIdx;
+  document.getElementById("iqa-page-edit-page-idx").value  = "-1";
+  document.getElementById("iqa-page-name-input").value  = "";
+  document.getElementById("iqa-page-route-input").value = "";
+  document.getElementById("iqa-page-modal-title").innerText = "เพิ่ม Page ใหม่";
+  new bootstrap.Modal(document.getElementById("modal-iqa-page")).show();
+}
+function iqaShowEditPageModal(phaseIdx, pageIdx) {
+  var ph  = (APP.iqaSchema.phases||[])[phaseIdx] || {};
+  var pg  = (ph.pages||[])[pageIdx] || {};
+  document.getElementById("iqa-page-edit-phase-idx").value = phaseIdx;
+  document.getElementById("iqa-page-edit-page-idx").value  = pageIdx;
+  document.getElementById("iqa-page-name-input").value  = pg.pageName || "";
+  document.getElementById("iqa-page-route-input").value = pg.route    || "";
+  document.getElementById("iqa-page-modal-title").innerText = "แก้ไข Page";
+  new bootstrap.Modal(document.getElementById("modal-iqa-page")).show();
+}
+function iqaPageModalSave() {
+  var name  = (document.getElementById("iqa-page-name-input").value  || "").trim();
+  if (!name) { showToast("กรุณากรอกชื่อ Page","warning"); return; }
+  var route = (document.getElementById("iqa-page-route-input").value || "").trim();
+  var phi   = parseInt(document.getElementById("iqa-page-edit-phase-idx").value, 10);
+  var pgi   = parseInt(document.getElementById("iqa-page-edit-page-idx").value,  10);
+  var phase = (APP.iqaSchema.phases||[])[phi];
+  if (!phase) return;
+  if (!phase.pages) phase.pages = [];
+  if (pgi >= 0) {
+    phase.pages[pgi].pageName = name;
+    phase.pages[pgi].route    = route;
+  } else {
+    phase.pages.push({ pageId: "PG_"+Date.now(), pageName: name, route: route, items: [] });
+    _iqaBuilderActivePageKey = phi * 1000 + (phase.pages.length - 1);
+  }
+  var mi = bootstrap.Modal.getInstance(document.getElementById("modal-iqa-page")); if(mi)mi.hide();
+  _iqaBuilderRender();
+}
+
+// ── Item CRUD ───────────────────────────────────────────────
+function iqaShowAddItemModal(phaseIdx, pageIdx) {
+  document.getElementById("iqa-item-phase-idx").value = phaseIdx;
+  document.getElementById("iqa-item-page-idx").value  = pageIdx;
+  document.getElementById("iqa-item-label-input").value = "";
+  new bootstrap.Modal(document.getElementById("modal-iqa-item")).show();
+}
+function iqaItemModalSave() {
+  var label = (document.getElementById("iqa-item-label-input").value || "").trim();
+  if (!label) { showToast("กรุณากรอก Label / หัวข้อ","warning"); return; }
+  var phi  = parseInt(document.getElementById("iqa-item-phase-idx").value, 10);
+  var pgi  = parseInt(document.getElementById("iqa-item-page-idx").value,  10);
+  var page = ((APP.iqaSchema.phases||[])[phi]||{}).pages;
+  if (!page || !page[pgi]) return;
+  if (!page[pgi].items) page[pgi].items = [];
+  page[pgi].items.push({ itemId: "IT_"+Date.now(), label: label, formId: "", fieldKey: "" });
+  var mi = bootstrap.Modal.getInstance(document.getElementById("modal-iqa-item")); if(mi)mi.hide();
+  _iqaBuilderRender();
+}
+function iqaDeleteItem(phaseIdx, pageIdx, itemIdx) {
+  var page = ((APP.iqaSchema.phases||[])[phaseIdx]||{}).pages;
+  if (!page || !page[pageIdx] || !page[pageIdx].items) return;
+  var label = (page[pageIdx].items[itemIdx]||{}).label || "Item นี้";
+  if (!confirm('ลบ "'+label+'" ใช่หรือไม่?')) return;
+  page[pageIdx].items.splice(itemIdx, 1);
+  _iqaBuilderRender();
+}
+
+// ── Mapping Dropdowns (inline in builder) ───────────────────
+function iqaBuilderOnFormChange(sel, phi, pgi, iti) {
   var formId = sel.value;
-  
-  var fieldRow = document.getElementById("iqa-field-row-"+idx);
-  // ✅ แก้ไข: เปลี่ยนคำสั่งให้โชว์เป็น flex แทน block 
-  if (fieldRow) fieldRow.style.display = formId ? "flex" : "none";
-  
-  if (formId) {
-    var fldSel = fieldRow ? fieldRow.querySelector(".iqa-field-sel") : null;
-    if (fldSel) {
-      var opts = '<option value="">-- ทั้ง Form (ภาพรวม) --</option>';
-      var form = null;
-      for (var i=0;i<APP.forms.length;i++){if(APP.forms[i].formId===formId){form=APP.forms[i];break;}}
+  var pages  = ((APP.iqaSchema.phases||[])[phi]||{}).pages || [];
+  var item   = (pages[pgi]||{}).items ? pages[pgi].items[iti] : null;
+  if (!item) return;
+  item.formId   = formId;
+  item.fieldKey = "";
+
+  // อัปเดต field select ทันที (ไม่ต้อง re-render ทั้งหน้า)
+  var fldSel = document.getElementById("iqa-fld-"+phi+"-"+pgi+"-"+iti);
+  if (fldSel) {
+    if (formId) {
+      fldSel.style.display = "inline-block";
+      var opts = '<option value="">— ทั้ง Form (ภาพรวม) —</option>';
+      var form = (APP.forms||[]).find(function(f){return f.formId===formId;});
       if (form) {
         (form.fields||[]).forEach(function(fld){
-          if(!fld.label||fld.type==="divider") return;
+          if (!fld.label || fld.type==="divider") return;
           opts += '<option value="'+escHtml(fld.key)+'">'+escHtml(fld.label)+'</option>';
         });
       }
       fldSel.innerHTML = opts;
-      fldSel.setAttribute("data-pageid", pageId);
-      fldSel.setAttribute("data-label",  label);
+    } else {
+      fldSel.style.display = "none";
     }
   }
-  iqaSetFieldMappingDirect(pageId, label, formId, "");
+  _computeFromSchema(APP.iqaSchema);
+}
+function iqaBuilderOnFieldChange(sel, phi, pgi, iti) {
+  var pages = ((APP.iqaSchema.phases||[])[phi]||{}).pages || [];
+  var item  = (pages[pgi]||{}).items ? pages[pgi].items[iti] : null;
+  if (item) item.fieldKey = sel.value;
+  _computeFromSchema(APP.iqaSchema);
 }
 
-function iqaOnFieldChangeSel(sel) {
-  var pageId   = sel.getAttribute("data-pageid") || "";
-  var label    = sel.getAttribute("data-label")  || "";
-  var fieldKey = sel.value;
-  var row = sel.closest(".iqa-map-controls");
-  var formSel = row ? row.querySelector(".iqa-form-sel") : null;
-  var formId  = formSel ? formSel.value : "";
-  iqaSetFieldMappingDirect(pageId, label, formId, fieldKey);
-}
-
-function iqaClearPageMappingBtn(btn) {
-  var pageId = btn.getAttribute("data-pageid") || "";
-  if (pageId) { iqaClearPageMapping(pageId); }
-}
-
-function iqaSetFieldMappingDirect(pageId, label, formId, fieldKey) {
-  if (!APP.iqaMapping) APP.iqaMapping = {};
-  if (!APP.iqaMapping[pageId]) APP.iqaMapping[pageId] = {};
-  if (formId) {
-    APP.iqaMapping[pageId][label] = { formId: formId, fieldKey: fieldKey };
-  } else {
-    delete APP.iqaMapping[pageId][label];
-  }
-  if (typeof _iqaPendingChanges !== "undefined") _iqaPendingChanges++;
-  _updateIqaSaveBtn();
-}
-
-function _iqaBuildFieldOpts(formId, selectedKey) {
-  if (!formId) return '<option value="">-- เลือก Form ก่อน --</option>';
-  var form = APP.forms.find(function(f){ return f.formId === formId; });
-  if (!form || !form.fields || !form.fields.length) return '<option value="">-- Form นี้ไม่มีฟิลด์ --</option>';
-  var opts = '<option value="">-- Field --</option>';
-  form.fields.forEach(function(field) {
-    opts += '<option value="'+escHtml(field.key)+'"'+(selectedKey===field.key?' selected':'')+'>'+escHtml(field.label)+'</option>';
-  });
-  return opts;
-}
-
-function iqaOnFormChange(selEl, rowIdx, label) {
-  var formId = selEl.value;
-  var fieldSel = document.getElementById("iqa-field-sel-"+rowIdx);
-  if (fieldSel) fieldSel.innerHTML = _iqaBuildFieldOpts(formId, "");
-  if (_iqaSelectedPageId) {
-    if (!APP.iqaMapping[_iqaSelectedPageId]) APP.iqaMapping[_iqaSelectedPageId] = {};
-    delete APP.iqaMapping[_iqaSelectedPageId][label];
-  }
-}
-
-function iqaSetFieldMapping(pageId, label, formId, fieldKey) {
-  if (!APP.iqaMapping[pageId]) APP.iqaMapping[pageId] = {};
-  if (formId && fieldKey) {
-    APP.iqaMapping[pageId][label] = { formId: formId, fieldKey: fieldKey };
-  } else {
-    delete APP.iqaMapping[pageId][label];
-  }
-}
-
-function iqaClearPageMapping(pageId) {
-  APP.iqaMapping[pageId] = {};
-  showToast("ล้าง Mapping ของหน้านี้แล้ว", "info");
-  iqaGoStep2(pageId);
-}
-
-function iqaSaveAllMappings() {
-  var btn = document.querySelector('[onclick="iqaSaveAllMappings()"]');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> บันทึก...'; }
-  
+// ── Schema Save ─────────────────────────────────────────────
+function iqaSaveSchema() {
+  var btn = document.getElementById("iqa-save-schema-btn");
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>กำลังบันทึก...'; }
+  _computeFromSchema(APP.iqaSchema); // sync mapping ก่อนส่ง
   google.script.run
     .withSuccessHandler(function(res) {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save-fill me-1"></i>บันทึก Mapping'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save-fill me-1"></i>บันทึก Schema'; }
       if (res && res.success) {
-        showToast("บันทึก IQA Mapping สำเร็จ", "success");
-        _iqaPendingChanges = 0;
-        _updateIqaSaveBtn();
-      } else showToast((res && res.message) || "เกิดข้อผิดพลาด", "danger");
+        showToast("บันทึก IQA Schema สำเร็จ","success");
+      } else showToast((res&&res.message)||"เกิดข้อผิดพลาด","danger");
     })
     .withFailureHandler(function(err) {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save-fill me-1"></i>บันทึก Mapping'; }
-      showToast(err.message || err, "danger");
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save-fill me-1"></i>บันทึก Schema'; }
+      showToast(err.message||err,"danger");
     })
-    .saveIqaMappingData(APP.iqaMapping || {}); 
+    .saveIqaSchema(APP.iqaSchema || { phases: [] });
 }
 
-function renderIqaPublicView() {
-  var yearEl = document.getElementById("public-year-select");
-  var year   = yearEl ? yearEl.value : "";
-  var container = document.getElementById("iqa-view-content");
+// ════════════════════════════════════════════════════════════
+// Task 2: IQA Public View — ใช้ได้กับหลาย Container
+// containerIdParam: id ของ container ที่จะวาด IQA view
+// ════════════════════════════════════════════════════════════
+function renderIqaPublicView(containerIdParam) {
+  // หา year จาก select ต่างๆ ที่มีในหน้า
+  var year = "";
+  ["public-year-select","mgr-year-select","admin-year-select"].forEach(function(sid){
+    var el = document.getElementById(sid);
+    if (el && el.value && !year) year = el.value;
+  });
+
+  var cid = containerIdParam || "iqa-view-content";
+  var container = document.getElementById(cid);
   if (!container) return;
 
-  var pagesP1 = _iqaGetUniquePages("Phase1");
-  var pagesP2 = _iqaGetUniquePages("Phase2");
+  _computeFromSchema(APP.iqaSchema || { phases: [] });
+  var schema = APP.iqaSchema || { phases: [] };
 
-  var html = '<div class="qa-iqa-phase-bar">'
-    + '<button class="qa-btn-primary btn-sm" id="iqa-pub-p1-btn" onclick="iqaPubSelectPhase(1)">'
-    + '<i class="bi bi-1-circle-fill me-1"></i>Phase 1 ข้อมูลพื้นฐาน</button>'
-    + '<button class="qa-btn-ghost btn-sm" id="iqa-pub-p2-btn" onclick="iqaPubSelectPhase(2)">'
-    + '<i class="bi bi-2-circle-fill me-1"></i>Phase 2 ประเมินคุณภาพ</button>'
-    + '</div>'
-    + '<div id="iqa-pub-phase1">'+ _buildIqaPubAccordions(pagesP1, year, "p1") +'</div>'
-    + '<div id="iqa-pub-phase2" style="display:none;">'+ _buildIqaPubAccordions(pagesP2, year, "p2") +'</div>';
+  if (!schema.phases || !schema.phases.length) {
+    container.innerHTML = '<div class="qa-alert qa-alert-info mt-2"><i class="bi bi-info-circle-fill"></i>'
+      +'<span>ยังไม่มี IQA Schema — Admin ต้องสร้าง Schema ก่อน</span></div>';
+    return;
+  }
 
-  container.innerHTML = html;
+  // Phase tabs
+  var tabsHtml = '<div class="qa-iqa-phase-bar mb-3">';
+  schema.phases.forEach(function(phase, pi) {
+    tabsHtml += '<button class="'+(pi===0?"qa-btn-primary":"qa-btn-ghost")+' btn-sm" '
+      +'id="iqa-pub-phase-btn-'+cid+'-'+pi+'" '
+      +'onclick="iqaPubSelectPhaseByIdx('+pi+',\''+cid+'\')">'
+      +escHtml(phase.phaseName)+'</button>';
+  });
+  tabsHtml += '</div>';
+
+  // Phase panels
+  var panels = schema.phases.map(function(phase, pi) {
+    var pages = Object.values(APP._iqaPages||{}).filter(function(p){ return p.phase===phase.phaseId; });
+    return '<div id="iqa-pub-phase-panel-'+cid+'-'+pi+'" style="display:'+(pi===0?"block":"none")+'">'
+      +_buildIqaPubAccordions(pages, year, cid+"-p"+pi)+'</div>';
+  }).join("");
+
+  container.innerHTML = tabsHtml + panels;
 }
 
-function iqaPubSelectPhase(n) {
-  var p1 = document.getElementById("iqa-pub-phase1");
-  var p2 = document.getElementById("iqa-pub-phase2");
-  var b1 = document.getElementById("iqa-pub-p1-btn");
-  var b2 = document.getElementById("iqa-pub-p2-btn");
-  if (p1) p1.style.display = n === 1 ? "block" : "none";
-  if (p2) p2.style.display = n === 2 ? "block" : "none";
-  if (b1) b1.className = n === 1 ? "qa-btn-primary btn-sm" : "qa-btn-ghost btn-sm";
-  if (b2) b2.className = n === 2 ? "qa-btn-primary btn-sm" : "qa-btn-ghost btn-sm";
+// สลับ Phase tab ใน public view (ใช้ได้กับทุก container)
+function iqaPubSelectPhaseByIdx(targetIdx, cid) {
+  var schema = APP.iqaSchema || { phases: [] };
+  schema.phases.forEach(function(ph, pi) {
+    var panel = document.getElementById("iqa-pub-phase-panel-"+cid+"-"+pi);
+    var btn   = document.getElementById("iqa-pub-phase-btn-"+cid+"-"+pi);
+    if (panel) panel.style.display = pi===targetIdx ? "block" : "none";
+    if (btn)   btn.className       = pi===targetIdx ? "qa-btn-primary btn-sm" : "qa-btn-ghost btn-sm";
+  });
 }
 
+// ── Accordion Builder (Public View Rendering) ───────────────
+// รับ pages (legacy format) + year + prefix → คืน HTML accordion cards
 function _buildIqaPubAccordions(pages, year, prefix) {
-  if (!pages.length) return '<div class="qa-alert qa-alert-info"><i class="bi bi-info-circle-fill"></i><span>ไม่มีข้อมูล</span></div>';
-  var pfx = prefix ? prefix + "-" : "";
+  if (!pages || !pages.length) return '<div class="qa-alert qa-alert-info"><i class="bi bi-info-circle-fill"></i><span>ไม่มีข้อมูล</span></div>';
+  var pfx = prefix ? prefix+"-" : "";
+
   return pages.map(function(page, pi) {
-    var mapping    = APP.iqaMapping[page.id] || {};
-    var mappedCount = 0;
-    var dataCount   = 0;
+    var mapping     = (APP.iqaMapping||{})[page.id] || {};
+    var mappedCount = 0, dataCount = 0;
+    var secHtml     = '';
+    var sections    = (page.sections||[]).filter(function(s){ return s && s.trim(); });
 
-    var secHtml = '';
-    var sections = (page.sections || []).filter(function(s){ return s.trim(); });
     sections.forEach(function(label) {
-      var mapVal  = mapping[label] || {};
-      var formId  = mapVal.formId  || "";
+      var mapVal   = mapping[label] || {};
+      var formId   = mapVal.formId   || "";
       var fieldKey = mapVal.fieldKey || "";
-      var secId   = "";
+      var secId    = "";
+      var formObj  = formId ? (APP.forms||[]).find(function(f){return f.formId===formId;}) : null;
 
-      var formObj = formId ? APP.forms.find(function(f){ return f.formId === formId; }) : null;
-
-      // หา secId: ลำดับ 1) form.sectionId  2) field.sectionIds[0]  3) active section ที่เห็นฟิลด์นี้
+      // หา sectionId สำหรับดึงข้อมูล
       if (formObj && formObj.sectionId) {
         secId = formObj.sectionId;
       } else if (formObj && fieldKey) {
-        var fldDef = (formObj.fields || []).find(function(ff){ return ff.key === fieldKey; });
-        if (fldDef && fldDef.sectionIds && fldDef.sectionIds.length) {
-          secId = fldDef.sectionIds[0];
-        } else {
-          // field visible to all → ใช้ active section แรก
-          var firstSec = (APP.sections || []).find(function(s){ return s.isActive; });
-          if (firstSec) secId = firstSec.sectionId;
-        }
+        var fldDef = (formObj.fields||[]).find(function(ff){return ff.key===fieldKey;});
+        if (fldDef && fldDef.sectionIds && fldDef.sectionIds.length) secId = fldDef.sectionIds[0];
+        else { var fs=(APP.sections||[]).find(function(s){return s.isActive;}); if(fs)secId=fs.sectionId; }
+      } else if (formObj) {
+        // form ทั้งก้อน — ใช้ field แรกหา section
+        var anyFld = (formObj.fields||[]).find(function(ff){return ff.sectionIds&&ff.sectionIds.length;});
+        if (anyFld) secId = anyFld.sectionIds[0];
+        if (!secId) { var fs2=(APP.sections||[]).find(function(s){return s.isActive;}); if(fs2)secId=fs2.sectionId; }
       }
 
       var sub = (secId && year)
-        ? APP.dashboard.find(function(d){ return d.sectionId === secId && String(d.year) === String(year); })
+        ? (APP.dashboard||[]).find(function(d){return d.sectionId===secId&&String(d.year)===String(year);})
         : null;
 
       var valHtml = '';
       if (formId && fieldKey) {
         mappedCount++;
-        var dataObj = {};
-        if (sub) { try { dataObj = JSON.parse(sub.dataJson || "{}"); } catch(e) {} }
-        var val = dataObj[fieldKey];
+        var dObj = {}; if(sub){try{dObj=JSON.parse(sub.dataJson||"{}");}catch(e){}}
+        var val = dObj[fieldKey];
         var hasVal = val !== undefined && val !== null && val !== "";
         if (hasVal) {
           dataCount++;
-          valHtml = '<div class="qa-iqa-val-mapped">'
-            + '<i class="bi bi-check-circle-fill me-1"></i>'
-            + '<strong>'+(formObj ? escHtml(formObj.formName) : formId)+'</strong>'
-            + ' — '+escHtml(String(val).substring(0,50))
-            + '</div>';
+          valHtml = '<div class="qa-iqa-val-mapped"><i class="bi bi-check-circle-fill me-1"></i>'
+            +'<strong>'+(formObj?escHtml(formObj.formName):formId)+'</strong>'
+            +' › <span>'+escHtml(String(val))+'</span></div>';
         } else {
-          valHtml = '<div class="qa-iqa-val-pending">'
-            + '<i class="bi bi-hourglass-split me-1"></i>'
-            + (formObj ? escHtml(formObj.formName) : formId)
-            + ' — ยังไม่มีข้อมูลในฟิลด์นี้</div>';
+          valHtml = '<div class="qa-iqa-val-empty"><i class="bi bi-hourglass-split me-1"></i>'
+            +'<strong>'+(formObj?escHtml(formObj.formName):formId)+'</strong>'
+            +' › <span style="color:var(--txt-muted);">ยังไม่มีข้อมูลในปีนี้</span></div>';
         }
+      } else if (formId) {
+        mappedCount++;
+        var dObjF = {}; if(sub){try{dObjF=JSON.parse(sub.dataJson||"{}");}catch(e){}}
+        var hasAny = Object.keys(dObjF).length > 0;
+        if (hasAny) dataCount++;
+        valHtml = '<div class="qa-iqa-val-'+(hasAny?"mapped":"empty")+'">'
+          +'<i class="bi bi-'+(hasAny?"check-circle-fill":"hourglass-split")+' me-1"></i>'
+          +'<span>'+(formObj?escHtml(formObj.formName):formId)+'</span>'
+          +' <span style="color:var(--txt-muted);">— ภาพรวม Form</span></div>';
       } else {
         valHtml = '<div class="qa-iqa-val-none">ยังไม่ได้ Mapping</div>';
       }
 
       secHtml += '<div class="qa-iqa-field-row">'
-        + '<div class="qa-iqa-field-label">'+escHtml(label)+'</div>'
-        + '<div class="qa-iqa-field-val">'+valHtml+'</div>'
-        + '</div>';
+        +'<div class="qa-iqa-field-label">'+escHtml(label)+'</div>'
+        +'<div class="qa-iqa-field-val">'+valHtml+'</div></div>';
     });
 
-    var pctFill = mappedCount > 0 ? Math.round(dataCount / mappedCount * 100) : 0;
-    var badgeColor = pctFill === 100 ? "var(--success)" : (pctFill > 0 ? "var(--warning)" : "var(--danger)");
-    var badgeBg    = pctFill === 100 ? "var(--success-l)" : (pctFill > 0 ? "var(--warning-l)" : "var(--surface-3)");
+    var pctFill    = mappedCount > 0 ? Math.round(dataCount/mappedCount*100) : 0;
+    var badgeColor = pctFill===100 ? "var(--success)" : pctFill>0 ? "var(--warning)" : "var(--danger)";
+    var badgeBg    = pctFill===100 ? "var(--success-l)" : pctFill>0 ? "var(--warning-l)" : "var(--surface-3)";
     var badge = mappedCount > 0
       ? '<span style="background:'+badgeBg+';color:'+badgeColor+';padding:2px 9px;border-radius:20px;font-size:.67rem;font-weight:700;flex-shrink:0;">'
-          + '<i class="bi bi-bar-chart-fill me-1"></i>'+dataCount+'/'+mappedCount+' ('+pctFill+'%)</span>'
+        +'<i class="bi bi-bar-chart-fill me-1"></i>'+dataCount+'/'+mappedCount+' ('+pctFill+'%)</span>'
       : '<span style="background:var(--surface-3);color:var(--txt-muted);padding:2px 9px;border-radius:20px;font-size:.67rem;flex-shrink:0;">ยังไม่ Mapped</span>';
 
     var bodyId = "iqa-pub-body-"+pfx+pi;
     return '<div class="qa-iqa-pub-card">'
-      + '<div class="qa-iqa-pub-head" onclick="iqaPubToggle(\''+bodyId+'\')" >'
-      + '<i class="bi bi-chevron-right" id="arr-'+bodyId+'" style="transition:.2s;color:var(--txt-muted);flex-shrink:0;font-size:.8rem;"></i>'
-      + '<span style="font-size:.7rem;background:var(--info-l);color:var(--info);padding:2px 9px;border-radius:20px;font-weight:700;flex-shrink:0;">'+page.phase+'</span>'
-      + '<span style="font-weight:700;font-size:.86rem;color:var(--txt);flex:1;">'+escHtml(page.name)+'</span>'
-      + badge
-      + '<span style="font-size:.68rem;color:var(--txt-muted);font-family:monospace;flex-shrink:0;">'+escHtml(page.route)+'</span>'
-      + '</div>'
-      + '<div class="qa-iqa-pub-body" id="'+bodyId+'">'
-      + '<div style="font-size:.74rem;color:var(--info);margin-bottom:12px;padding:6px 10px;background:var(--info-l);border-radius:var(--r-sm);">'
-      + '<i class="bi bi-link-45deg me-1"></i>URL: <strong>https://iqa.ovec.go.th'+escHtml(page.route)+'</strong>'
-      + '</div>'
-      + secHtml
-      + '</div></div>';
+      +'<div class="qa-iqa-pub-head" onclick="iqaPubToggle(\''+bodyId+'\')">'
+      +'<i class="bi bi-chevron-right" id="arr-'+bodyId+'" style="transition:.2s;color:var(--txt-muted);flex-shrink:0;font-size:.8rem;"></i>'
+      +'<span style="font-size:.7rem;background:var(--info-l);color:var(--info);padding:2px 9px;border-radius:20px;font-weight:700;flex-shrink:0;">'+escHtml(page.phaseName||page.phase||"")+'</span>'
+      +'<span style="font-weight:700;font-size:.86rem;color:var(--txt);flex:1;">'+escHtml(page.name)+'</span>'
+      +badge
+      +(page.route?'<span style="font-size:.68rem;color:var(--txt-muted);font-family:monospace;flex-shrink:0;">'+escHtml(page.route)+'</span>':"")
+      +'</div>'
+      +'<div class="qa-iqa-pub-body" id="'+bodyId+'">'
+      +(page.route?'<div style="font-size:.74rem;color:var(--info);margin-bottom:12px;padding:6px 10px;background:var(--info-l);border-radius:var(--r-sm);">'
+        +'<i class="bi bi-link-45deg me-1"></i>URL: <strong>https://iqa.ovec.go.th'+escHtml(page.route)+'</strong></div>':"")
+      +secHtml
+      +'</div></div>';
   }).join('');
 }
 
+// Toggle accordion card
 function iqaPubToggle(bodyId) {
   var el  = document.getElementById(bodyId);
   var arr = document.getElementById("arr-"+bodyId);
@@ -571,38 +544,5 @@ function iqaPubToggle(bodyId) {
   var isOpen = el.classList.contains("open");
   el.classList.toggle("open", !isOpen);
   if (arr) arr.style.transform = isOpen ? "" : "rotate(90deg)";
-}
-
-function iqaConfirmSave() {
-  if (_iqaPendingChanges === 0) {
-    showToast("ไม่มีการเปลี่ยนแปลงที่ต้องบันทึก","info");
-    return;
-  }
-  var useModal = document.getElementById("modal-iqa-confirm");
-  if (useModal) {
-    document.getElementById("iqa-confirm-count").innerText = _iqaPendingChanges;
-    var emailInput = document.getElementById("iqa-confirm-email-input");
-    if (emailInput) emailInput.value = "";
-    var errEl = document.getElementById("iqa-confirm-email-err");
-    if (errEl) errEl.style.display = "none";
-    new bootstrap.Modal(useModal).show();
-  } else {
-    iqaSaveAllMappings();
-  }
-}
-function iqaExecuteSave() {
-  var emailInput = document.getElementById("iqa-confirm-email-input");
-  var inputVal  = emailInput ? emailInput.value.trim().toLowerCase() : "";
-  var adminEmail = (APP.user && APP.user.email || "").toLowerCase();
-  var errEl = document.getElementById("iqa-confirm-email-err");
-  if (inputVal !== adminEmail) {
-    if (errEl) errEl.style.display = "block";
-    showToast("อีเมลไม่ตรงกัน","warning");
-    return;
-  }
-  if (errEl) errEl.style.display = "none";
-  var mi = bootstrap.Modal.getInstance(document.getElementById("modal-iqa-confirm"));
-  if (mi) mi.hide();
-  iqaSaveAllMappings();
 }
 </script>

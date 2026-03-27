@@ -692,4 +692,27 @@ div[id$="-picker-modal"] > div {
 .modal-body p.text-muted {
     color: var(--txt-3) !important;
 }
+
+/* ── Field Owner Badge (ผู้รับผิดชอบฟิลด์) ───────────────── */
+.qa-field-owner {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-bottom: 5px;
+}
+.qa-field-owner-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 9px; border-radius: 20px;
+  font-size: .68rem; font-weight: 600; line-height: 1.6;
+  white-space: nowrap;
+}
+.qa-field-owner-badge.all {
+  background: var(--border-2); color: var(--txt-muted);
+  border: 1px solid var(--border);
+}
+.qa-field-owner-badge.sec {
+  background: var(--primary-ul); color: var(--primary);
+  border: 1px solid var(--primary-s);
+}
+[data-theme="dark"] .qa-field-owner-badge.all {
+  background: rgba(255,255,255,.07); color: var(--txt-muted);
+}
 </style>

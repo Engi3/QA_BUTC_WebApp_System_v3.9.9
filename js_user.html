@@ -305,13 +305,25 @@ function buildFormCard(form, section) {
     return f.sectionIds.indexOf(section.sectionId) >= 0;
   });
 
+  // ── Copy bar: ดึงข้อมูลจากปีการศึกษาอื่น ────────────────────
+  var copyBar = '<div id="copy-bar-'+fid+'" class="qa-copy-bar" style="display:none; align-items:center; gap:8px; padding:8px 16px; background:var(--surface-2); border-bottom:1px solid var(--border);">'
+    + '<i class="bi bi-clock-history text-info" style="flex-shrink:0;"></i>'
+    + '<span style="font-size:.82rem; color:var(--txt-muted); flex-shrink:0;">ดึงจากปี:</span>'
+    + '<select id="copy-year-sel-'+fid+'" class="qa-input py-1" style="flex:1; max-width:180px; font-size:.82rem;"></select>'
+    + '<button type="button" class="qa-btn-primary btn-sm" onclick="copySectionData(\''+secId+'\',\''+fid+'\')">'
+    + '<i class="bi bi-cloud-download-fill me-1"></i>ดึงข้อมูล</button></div>';
+
+  var copyBtn = '<button type="button" class="qa-btn-ghost btn-sm" onclick="checkAvailableYearsToCopy(\''+secId+'\',\''+fid+'\')">'
+    + '<i class="bi bi-clock-history me-1"></i>ดึงข้อมูลจากปีการศึกษาอื่น</button>';
+
   return '<form onsubmit="submitFormData(event,\''+secId+'\',\''+secName+'\',\''+fid+'\')">'
     + '<div class="qa-glass-card mb-4 p-0">'
     + '<div class="qa-form-card-head"><i class="bi bi-file-earmark-text me-2"></i>'+escHtml(form.formName)+'</div>'
     + (form.description?'<div class="qa-form-card-desc"><i class="bi bi-info-circle me-2"></i>'+escHtml(form.description)+'</div>':"")
     + (form.note?'<div class="qa-form-card-note"><i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;"></i><span>'+escHtml(form.note)+'</span></div>':"")
-    + '<div style="padding:20px;">'+renderFormFields(visibleFields)+'</div>'
-    + '<div class="qa-form-card-foot"><div>'+clearBtn+'</div>'
+    + copyBar
+    + '<div id="form-pane-'+fid+'" style="padding:20px;">'+renderFormFields(visibleFields)+'</div>'
+    + '<div class="qa-form-card-foot"><div class="d-flex gap-2">'+clearBtn+copyBtn+'</div>'
     + '<div><button type="submit" class="qa-btn-primary"><i class="bi bi-save-fill me-1"></i>บันทึก '+escHtml(form.formName)+'</button></div>'
     + '</div></div></form>';
 }
@@ -323,8 +335,33 @@ function renderFormFields(fields) {
 
 function renderOneField(field) {
   if (!field || !field.type) return "";
+
+  // Divider ไม่มี owner badge
+  if (field.type === "divider") {
+    var dLbl = field.label || field.placeholder || "";
+    if (dLbl) return '<div class="qa-form-divider"><span class="qa-form-divider-label">'+escHtml(dLbl)+'</span></div>';
+    return '<div class="qa-form-divider"></div>';
+  }
+
   var lbl  = field.label ? '<label class="qa-label">'+escHtml(field.label)+(field.required?'<span style="color:var(--danger);"> *</span>':"")+' </label>' : "";
-  var desc = field.desc  ? '<div style="font-size:.75rem;color:var(--info);margin-bottom:5px;"><i class="bi bi-info-circle me-1"></i>'+escHtml(field.desc)+'</div>' : "";
+
+  // ── Badge ผู้รับผิดชอบ ────────────────────────────────────
+  var sids = field.sectionIds || [];
+  var ownerInner;
+  if (!sids.length) {
+    ownerInner = '<span class="qa-field-owner-badge all"><i class="bi bi-people-fill me-1"></i>ทุก Section</span>';
+  } else {
+    ownerInner = sids.map(function(sid) {
+      var sName = sid;
+      for (var _j=0;_j<(APP.sections||[]).length;_j++){if(APP.sections[_j].sectionId===sid){sName=APP.sections[_j].sectionName;break;}}
+      return '<span class="qa-field-owner-badge sec"><i class="bi bi-person-check-fill me-1"></i>'+escHtml(sName)+'</span>';
+    }).join("");
+  }
+  var ownerBadge = '<div class="qa-field-owner">'+ownerInner+'</div>';
+  // ─────────────────────────────────────────────────────────
+
+  var desc = (field.desc ? '<div style="font-size:.75rem;color:var(--info);margin-bottom:5px;"><i class="bi bi-info-circle me-1"></i>'+escHtml(field.desc)+'</div>' : "");
+  desc = ownerBadge + desc; // badge อยู่ก่อน desc เสมอ
 
   switch (field.type) {
     case "image":
@@ -357,10 +394,6 @@ function renderOneField(field) {
       return '<div class="mb-3">'+lbl+desc+'<input type="url" class="qa-input" name="'+escHtml(field.key)+'" placeholder="'+escHtml(field.placeholder||"https://")+'"'+(field.required?" required":"")+'></div>';
     case "money":
       return '<div class="mb-3">'+lbl+desc+'<div class="qa-money-wrap"><span class="qa-money-prefix">฿</span><input type="number" step="0.01" class="qa-input qa-money-input" name="'+escHtml(field.key)+'" placeholder="'+escHtml(field.placeholder||"0.00")+'"'+(field.required?" required":"")+'></div></div>';
-    case "divider":
-      var dLbl = field.label || field.placeholder || "";
-      if (dLbl) return '<div class="qa-form-divider"><span class="qa-form-divider-label">'+escHtml(dLbl)+'</span></div>';
-      return '<div class="qa-form-divider"></div>';
     default:
       return '<div class="mb-3">'+lbl+desc+'<input type="text" class="qa-input" name="'+escHtml(field.key)+'" placeholder="'+escHtml(field.placeholder||"กรอกข้อมูล...")+'"'+(field.required?" required":"")+'></div>';
   }
