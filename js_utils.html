@@ -176,7 +176,12 @@ function toggleGenericAccordion(collapseId, chevronId, containerId) {
 function updateGenericSummary(containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
-  var selectedChips = container.querySelectorAll(".qa-chip-btn.selected");
+  // ✅ นับเฉพาะ chip ใน grid จริง (ไม่รวม chip read-only ใน summaryDiv ที่ render ซ้ำ)
+  // สาเหตุ bug: container.querySelectorAll ครอบคลุม summaryDiv ด้วย ทำให้นับเพิ่มทุก toggle
+  var grid = document.getElementById(containerId + "_chips");
+  var selectedChips = grid
+    ? grid.querySelectorAll(".qa-chip-btn.selected")
+    : container.querySelectorAll(".qa-chip-grid .qa-chip-btn.selected");
   var secCount = selectedChips.length;
   
   var badge = document.getElementById(containerId+"_badge");

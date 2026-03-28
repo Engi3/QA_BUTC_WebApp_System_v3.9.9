@@ -184,8 +184,11 @@ function loadUserSections() {
       if (!secObj) continue;
       // form-level assignment: form.sectionId ตรงกับ section นี้
       var formLevelMatch = form.sectionId && form.sectionId === sid;
+      // ✅ section.assignedFormIDs: Admin กำหนดฟอร์มให้ Section ใน Section Editor
+      // เดิมไม่ได้เช็ค ทำให้ฟอร์มไม่แสดงแม้ Admin กำหนดไว้แล้ว
+      var sectionAssigned = (secObj.assignedFormIDs || []).indexOf(form.formId) >= 0;
       // field-level: มีฟิลด์ที่ sectionIds รวม section นี้ หรือไม่ได้กำหนด section (visible to all)
-      var hasField = formLevelMatch || (form.fields || []).some(function(f) {
+      var hasField = formLevelMatch || sectionAssigned || (form.fields || []).some(function(f) {
         if (!f.sectionIds || !f.sectionIds.length) return true;
         return f.sectionIds.indexOf(sid) >= 0;
       });
@@ -322,7 +325,7 @@ function buildFormCard(form, section) {
     + (form.description?'<div class="qa-form-card-desc"><i class="bi bi-info-circle me-2"></i>'+escHtml(form.description)+'</div>':"")
     + (form.note?'<div class="qa-form-card-note"><i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;"></i><span>'+escHtml(form.note)+'</span></div>':"")
     + copyBar
-    + '<div id="form-pane-'+fid+'" style="padding:20px;">'+renderFormFields(visibleFields)+'</div>'
+    + '<div style="padding:20px;">'+renderFormFields(visibleFields)+'</div>'
     + '<div class="qa-form-card-foot"><div class="d-flex gap-2">'+clearBtn+copyBtn+'</div>'
     + '<div><button type="submit" class="qa-btn-primary"><i class="bi bi-save-fill me-1"></i>บันทึก '+escHtml(form.formName)+'</button></div>'
     + '</div></div></form>';

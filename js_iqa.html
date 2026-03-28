@@ -22,6 +22,7 @@ function _computeFromSchema(schema) {
         phaseName: phase.phaseName,
         route:     page.route || "",
         sections:  (page.items || []).map(function(it){ return it.label; }),
+        items:     page.items || [],  // ✅ เก็บ raw items ไว้ให้ _buildIqaPubAccordions ใช้
         tables:    []
       };
       mapping[page.pageId] = {};
@@ -440,76 +441,160 @@ function iqaPubSelectPhaseByIdx(targetIdx, cid) {
   });
 }
 
-// ── Accordion Builder (Public View Rendering) ───────────────
-// รับ pages (legacy format) + year + prefix → คืน HTML accordion cards
+// ── Helper: หา sectionId ที่เหมาะสมสำหรับ form+field ──────────
+// ลำดับ priority: form.sectionId → field.sectionIds → section.assignedFormIDs → first active
+function _iqaResolveSecId(formObj, fieldKey) {
+  if (!formObj) return "";
+  if (formObj.sectionId) return formObj.sectionId;
+  if (fieldKey) {
+    var fld = (formObj.fields||[]).find(function(f){ return f.key === fieldKey; });
+    if (fld && fld.sectionIds && fld.sectionIds.length) return fld.sectionIds[0];
+  }
+  // ค้นจาก section.assignedFormIDs (วิธี Admin กำหนดใน Section Editor)
+  var sec = (APP.sections||[]).find(function(s){
+    return s.isActive && (s.assignedFormIDs||[]).indexOf(formObj.formId) >= 0;
+  });
+  if (sec) return sec.sectionId;
+  var fs = (APP.sections||[]).find(function(s){ return s.isActive; });
+  return fs ? fs.sectionId : "";
+}
+
+// ── Accordion Builder (Public View Rendering) ─────────────────
+// รองรับทั้ง New items format (page.items) และ Legacy format (page.sections + mapping[label])
+// เมื่อ fieldKey = "" (ทั้ง Form) → แสดงทุก field ของ Form นั้น
 function _buildIqaPubAccordions(pages, year, prefix) {
   if (!pages || !pages.length) return '<div class="qa-alert qa-alert-info"><i class="bi bi-info-circle-fill"></i><span>ไม่มีข้อมูล</span></div>';
   var pfx = prefix ? prefix+"-" : "";
 
   return pages.map(function(page, pi) {
-    var mapping     = (APP.iqaMapping||{})[page.id] || {};
     var mappedCount = 0, dataCount = 0;
     var secHtml     = '';
-    var sections    = (page.sections||[]).filter(function(s){ return s && s.trim(); });
 
-    sections.forEach(function(label) {
-      var mapVal   = mapping[label] || {};
-      var formId   = mapVal.formId   || "";
-      var fieldKey = mapVal.fieldKey || "";
-      var secId    = "";
-      var formObj  = formId ? (APP.forms||[]).find(function(f){return f.formId===formId;}) : null;
+    // ── New items-based format (page.items) ──────────────────
+    var items = page.items || [];
+    if (items.length) {
+      items.forEach(function(item) {
+        var fid     = item.formId   || "";
+        var fldKey  = item.fieldKey || "";
+        var lbl     = item.label    || "";
+        var formObj = fid ? (APP.forms||[]).find(function(f){ return f.formId===fid; }) : null;
 
-      // หา sectionId สำหรับดึงข้อมูล
-      if (formObj && formObj.sectionId) {
-        secId = formObj.sectionId;
-      } else if (formObj && fieldKey) {
-        var fldDef = (formObj.fields||[]).find(function(ff){return ff.key===fieldKey;});
-        if (fldDef && fldDef.sectionIds && fldDef.sectionIds.length) secId = fldDef.sectionIds[0];
-        else { var fs=(APP.sections||[]).find(function(s){return s.isActive;}); if(fs)secId=fs.sectionId; }
-      } else if (formObj) {
-        // form ทั้งก้อน — ใช้ field แรกหา section
-        var anyFld = (formObj.fields||[]).find(function(ff){return ff.sectionIds&&ff.sectionIds.length;});
-        if (anyFld) secId = anyFld.sectionIds[0];
-        if (!secId) { var fs2=(APP.sections||[]).find(function(s){return s.isActive;}); if(fs2)secId=fs2.sectionId; }
-      }
-
-      var sub = (secId && year)
-        ? (APP.dashboard||[]).find(function(d){return d.sectionId===secId&&String(d.year)===String(year);})
-        : null;
-
-      var valHtml = '';
-      if (formId && fieldKey) {
-        mappedCount++;
-        var dObj = {}; if(sub){try{dObj=JSON.parse(sub.dataJson||"{}");}catch(e){}}
-        var val = dObj[fieldKey];
-        var hasVal = val !== undefined && val !== null && val !== "";
-        if (hasVal) {
-          dataCount++;
-          valHtml = '<div class="qa-iqa-val-mapped"><i class="bi bi-check-circle-fill me-1"></i>'
-            +'<strong>'+(formObj?escHtml(formObj.formName):formId)+'</strong>'
-            +' › <span>'+escHtml(String(val))+'</span></div>';
-        } else {
-          valHtml = '<div class="qa-iqa-val-empty"><i class="bi bi-hourglass-split me-1"></i>'
-            +'<strong>'+(formObj?escHtml(formObj.formName):formId)+'</strong>'
-            +' › <span style="color:var(--txt-muted);">ยังไม่มีข้อมูลในปีนี้</span></div>';
+        if (!fid) {
+          // ยังไม่ได้ Mapping
+          secHtml += '<div class="qa-iqa-field-row">'
+            +'<div class="qa-iqa-field-label">'+escHtml(lbl)+'</div>'
+            +'<div class="qa-iqa-field-val"><div class="qa-iqa-val-none">ยังไม่ได้ Mapping</div></div></div>';
+          return;
         }
-      } else if (formId) {
-        mappedCount++;
-        var dObjF = {}; if(sub){try{dObjF=JSON.parse(sub.dataJson||"{}");}catch(e){}}
-        var hasAny = Object.keys(dObjF).length > 0;
-        if (hasAny) dataCount++;
-        valHtml = '<div class="qa-iqa-val-'+(hasAny?"mapped":"empty")+'">'
-          +'<i class="bi bi-'+(hasAny?"check-circle-fill":"hourglass-split")+' me-1"></i>'
-          +'<span>'+(formObj?escHtml(formObj.formName):formId)+'</span>'
-          +' <span style="color:var(--txt-muted);">— ภาพรวม Form</span></div>';
-      } else {
-        valHtml = '<div class="qa-iqa-val-none">ยังไม่ได้ Mapping</div>';
-      }
 
-      secHtml += '<div class="qa-iqa-field-row">'
-        +'<div class="qa-iqa-field-label">'+escHtml(label)+'</div>'
-        +'<div class="qa-iqa-field-val">'+valHtml+'</div></div>';
-    });
+        if (fldKey) {
+          // ── map ฟิลด์เจาะจง ──────────────────────────────
+          mappedCount++;
+          var secId = _iqaResolveSecId(formObj, fldKey);
+          var sub   = secId && year
+            ? (APP.dashboard||[]).find(function(d){ return d.sectionId===secId && String(d.year)===String(year); })
+            : null;
+          var dObj  = {}; if(sub){ try{ dObj=JSON.parse(sub.dataJson||"{}"); }catch(e){} }
+          var val   = dObj[fldKey];
+          var hasV  = val !== undefined && val !== null && val !== "";
+          if (hasV) dataCount++;
+          var valHtml = hasV
+            ? '<div class="qa-iqa-val-mapped"><i class="bi bi-check-circle-fill me-1"></i>'
+              +'<strong>'+(formObj?escHtml(formObj.formName):fid)+'</strong> › <span>'+escHtml(String(val))+'</span></div>'
+            : '<div class="qa-iqa-val-empty"><i class="bi bi-hourglass-split me-1"></i>'
+              +'<strong>'+(formObj?escHtml(formObj.formName):fid)+'</strong>'
+              +' › <span style="color:var(--txt-muted);">ยังไม่มีข้อมูลในปีนี้</span></div>';
+          secHtml += '<div class="qa-iqa-field-row"><div class="qa-iqa-field-label">'+escHtml(lbl)+'</div>'
+            +'<div class="qa-iqa-field-val">'+valHtml+'</div></div>';
+
+        } else {
+          // ── map ทั้ง Form (fieldKey = "") → แสดงทุก field ────
+          // เหตุผล: Admin เลือกแค่ Form โดยไม่ระบุ field → ต้องแสดงทุก field ของ Form นั้น
+          mappedCount++;
+          var visFields = (formObj ? formObj.fields||[] : []).filter(function(fld){
+            return fld.type !== "divider" && fld.label;
+          });
+
+          if (!visFields.length) {
+            secHtml += '<div class="qa-iqa-field-row"><div class="qa-iqa-field-label">'+escHtml(lbl)+'</div>'
+              +'<div class="qa-iqa-field-val"><div class="qa-iqa-val-empty"><i class="bi bi-dash-circle me-1"></i>Form ไม่มีฟิลด์</div></div></div>';
+            return;
+          }
+
+          // แสดง header ชื่อ Form + ชื่อ label
+          secHtml += '<div class="qa-iqa-field-row" style="background:var(--primary-ul);padding:6px 10px;border-radius:var(--r-sm) var(--r-sm) 0 0;">'
+            +'<div class="qa-iqa-field-label" style="font-weight:700;color:var(--primary);">'
+            +'<i class="bi bi-file-earmark-text me-1"></i>'+escHtml(lbl)
+            +(formObj?' — <span style="font-weight:400;">'+escHtml(formObj.formName)+'</span>':'')
+            +'</div><div class="qa-iqa-field-val"></div></div>';
+
+          // วนแสดงทุก field
+          visFields.forEach(function(fld) {
+            var fSecId = _iqaResolveSecId(formObj, fld.key);
+            var fSub   = fSecId && year
+              ? (APP.dashboard||[]).find(function(d){ return d.sectionId===fSecId && String(d.year)===String(year); })
+              : null;
+            var fdObj  = {}; if(fSub){ try{ fdObj=JSON.parse(fSub.dataJson||"{}"); }catch(e){} }
+            var fVal   = fdObj[fld.key];
+            var fHasV  = fVal !== undefined && fVal !== null && fVal !== "";
+            if (fHasV) dataCount++;
+            var fValHtml = fHasV
+              ? '<div class="qa-iqa-val-mapped"><i class="bi bi-check-circle-fill me-1"></i><span>'+escHtml(String(fVal))+'</span></div>'
+              : '<div class="qa-iqa-val-empty"><i class="bi bi-hourglass-split me-1"></i><span style="color:var(--txt-muted);">ยังไม่มีข้อมูล</span></div>';
+            secHtml += '<div class="qa-iqa-field-row" style="padding-left:20px;">'
+              +'<div class="qa-iqa-field-label"><i class="bi bi-arrow-return-right me-1" style="color:var(--txt-muted);font-size:.75rem;"></i>'+escHtml(fld.label)+'</div>'
+              +'<div class="qa-iqa-field-val">'+fValHtml+'</div></div>';
+          });
+        }
+      });
+
+    } else {
+      // ── Legacy format (page.sections + APP.iqaMapping[label]) ──
+      var mapping  = (APP.iqaMapping||{})[page.id] || {};
+      var sections = (page.sections||[]).filter(function(s){ return s && s.trim(); });
+      sections.forEach(function(label) {
+        var mapVal   = mapping[label] || {};
+        var formId   = mapVal.formId   || "";
+        var fieldKey = mapVal.fieldKey || "";
+        var secId    = "";
+        var formObj  = formId ? (APP.forms||[]).find(function(f){return f.formId===formId;}) : null;
+        if (formObj && formObj.sectionId) {
+          secId = formObj.sectionId;
+        } else if (formObj && fieldKey) {
+          var fldDef = (formObj.fields||[]).find(function(ff){return ff.key===fieldKey;});
+          if (fldDef && fldDef.sectionIds && fldDef.sectionIds.length) secId = fldDef.sectionIds[0];
+          else { var fs=(APP.sections||[]).find(function(s){return s.isActive;}); if(fs)secId=fs.sectionId; }
+        } else if (formObj) {
+          var anyFld = (formObj.fields||[]).find(function(ff){return ff.sectionIds&&ff.sectionIds.length;});
+          if (anyFld) secId = anyFld.sectionIds[0];
+          if (!secId) { var fs2=(APP.sections||[]).find(function(s){return s.isActive;}); if(fs2)secId=fs2.sectionId; }
+        }
+        var sub = (secId && year)
+          ? (APP.dashboard||[]).find(function(d){return d.sectionId===secId&&String(d.year)===String(year);})
+          : null;
+        var valHtml = '';
+        if (formId && fieldKey) {
+          mappedCount++;
+          var dObj = {}; if(sub){try{dObj=JSON.parse(sub.dataJson||"{}");}catch(e){}}
+          var val = dObj[fieldKey];
+          var hasVal = val !== undefined && val !== null && val !== "";
+          if (hasVal) { dataCount++; }
+          valHtml = hasVal
+            ? '<div class="qa-iqa-val-mapped"><i class="bi bi-check-circle-fill me-1"></i><strong>'+(formObj?escHtml(formObj.formName):formId)+'</strong> › <span>'+escHtml(String(val))+'</span></div>'
+            : '<div class="qa-iqa-val-empty"><i class="bi bi-hourglass-split me-1"></i><strong>'+(formObj?escHtml(formObj.formName):formId)+'</strong> › <span style="color:var(--txt-muted);">ยังไม่มีข้อมูลในปีนี้</span></div>';
+        } else if (formId) {
+          mappedCount++;
+          var dObjF = {}; if(sub){try{dObjF=JSON.parse(sub.dataJson||"{}");}catch(e){}}
+          var hasAny = Object.keys(dObjF).length > 0;
+          if (hasAny) dataCount++;
+          valHtml = '<div class="qa-iqa-val-'+(hasAny?"mapped":"empty")+'"><i class="bi bi-'+(hasAny?"check-circle-fill":"hourglass-split")+' me-1"></i><span>'+(formObj?escHtml(formObj.formName):formId)+'</span> <span style="color:var(--txt-muted);">— ภาพรวม Form</span></div>';
+        } else {
+          valHtml = '<div class="qa-iqa-val-none">ยังไม่ได้ Mapping</div>';
+        }
+        secHtml += '<div class="qa-iqa-field-row"><div class="qa-iqa-field-label">'+escHtml(label)+'</div>'
+          +'<div class="qa-iqa-field-val">'+valHtml+'</div></div>';
+      });
+    }
 
     var pctFill    = mappedCount > 0 ? Math.round(dataCount/mappedCount*100) : 0;
     var badgeColor = pctFill===100 ? "var(--success)" : pctFill>0 ? "var(--warning)" : "var(--danger)";
