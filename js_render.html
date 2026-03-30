@@ -39,17 +39,22 @@ function renderPublicDashboard() {
     var yearData = APP.dashboard.filter(function(d){return String(d.year) === String(year);});
 
     // คำนวณ progress จากจำนวนฟิลด์ที่กรอก (ไม่ใช่จำนวน Section ที่ส่ง)
-    var totalFields = 0, completedFields = 0;
+    // totalFields = max fields ต่อ 1 section (ไม่ × จำนวน section)
+    // completedFields = เฉลี่ยที่กรอกต่อ section
+    var _tfSum = 0, _cfSum = 0, _maxTF = 0;
     active.forEach(function(sec) {
       var dashRow = null;
       for (var i = 0; i < yearData.length; i++) { if (yearData[i].sectionId === sec.sectionId) { dashRow = yearData[i]; break; } }
       var dataObj = {};
       if (dashRow && dashRow.dataJson) { try { dataObj = JSON.parse(dashRow.dataJson); } catch(e) {} }
       var prog = _calcFieldProgress(sec.sectionId, APP.forms, dataObj);
-      totalFields += prog.total;
-      completedFields += prog.completed;
+      _tfSum += prog.total;
+      _cfSum += prog.completed;
+      if (prog.total > _maxTF) _maxTF = prog.total;
     });
-    var pct = totalFields > 0 ? Math.round(completedFields / totalFields * 100) : 0;
+    var totalFields = _maxTF;
+    var completedFields = active.length > 0 ? Math.round(_cfSum / active.length) : 0;
+    var pct = _tfSum > 0 ? Math.round(_cfSum / _tfSum * 100) : 0;
     var sub = yearData.length;
     var total = active.length;
 
@@ -321,9 +326,18 @@ function _renderFormProgressGrid(containerId, year) {
       var dataObj = {};
       if (dashRow && dashRow.dataJson) { try { dataObj = JSON.parse(dashRow.dataJson); } catch(e) {} }
       (form.fields || []).forEach(function(field) {
-        if (field.type === "divider") return;
-        if (!field.sectionIds || !field.sectionIds.length || field.sectionIds.indexOf(sec.sectionId) >= 0) {
-          totalFields++;
+        if (field.type === "divider" || field.type === "image") return;
+        if (field.sectionIds && field.sectionIds.length && field.sectionIds.indexOf(sec.sectionId) < 0) return;
+        totalFields++;
+        if (field.type === "table") {
+          var prefix = field.key + "_r";
+          var hasData = Object.keys(dataObj).some(function(k) {
+            return k.indexOf(prefix) === 0
+              && k.indexOf("_total_rows") < 0 && k.indexOf("_col_meta") < 0 && k.indexOf("_table_def") < 0
+              && dataObj[k] !== "" && dataObj[k] !== null && dataObj[k] !== undefined;
+          });
+          if (hasData) completedFields++;
+        } else {
           var v = dataObj[field.key];
           if (v !== undefined && v !== null && v !== "") completedFields++;
         }
@@ -428,7 +442,7 @@ function renderFieldsRO(fields, dataObj) {
     } else {
       imgHtml = '<div class="qa-readonly-val">ไม่มีรูปภาพ</div>';
     }
-    html += '<div class="mb-3"><div class="qa-label">' + escHtml(f.label) + '</div>' + imgHtml + '</div>';
+    html += '<div class="mb-3"><div class="qa-label">' + nlToBr(f.label) + '</div>' + imgHtml + '</div>';
     continue;
   }
 
@@ -443,20 +457,20 @@ function renderFieldsRO(fields, dataObj) {
       continue;
     }
     if(f.type==="checkbox"){
-      html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div><div class="qa-readonly-val">'+((v==="Y"||v===true)?"✅ ใช่":"❌ ไม่ใช่")+'</div></div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-val">'+((v==="Y"||v===true)?"✅ ใช่":"❌ ไม่ใช่")+'</div></div>'; continue;
     }
     if(f.type==="link"){
       var url=escHtml(String(v)), isUrl=v&&v!=="-"&&(String(v).indexOf("http://")===0||String(v).indexOf("https://")===0);
-      html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div>'+(isUrl?'<a href="'+url+'" target="_blank" class="qa-readonly-link"><i class="bi bi-box-arrow-up-right me-2"></i>'+url+'</a>':'<div class="qa-readonly-val">'+url+'</div>')+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+(isUrl?'<a href="'+url+'" target="_blank" class="qa-readonly-link"><i class="bi bi-box-arrow-up-right me-2"></i>'+url+'</a>':'<div class="qa-readonly-val">'+url+'</div>')+'</div>'; continue;
     }
     if(f.type==="money"){
-      html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div><div class="qa-readonly-money">'+_formatMoneyRO(v)+'</div></div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-money">'+_formatMoneyRO(v)+'</div></div>'; continue;
     }
     if(f.type==="toggle"){
       var isOn=v==="ON"||v==="Y"||v===true||v==="true";
-      html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div><span class="'+(isOn?"qa-readonly-toggle-on":"qa-readonly-toggle-off")+'">'+(isOn?"✅ เปิด":"❌ ปิด")+'</span></div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><span class="'+(isOn?"qa-readonly-toggle-on":"qa-readonly-toggle-off")+'">'+(isOn?"✅ เปิด":"❌ ปิด")+'</span></div>'; continue;
     }
-    html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div><div class="qa-readonly-val">'+escHtml(String(v))+'</div></div>';
+    html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-val">'+escHtml(String(v))+'</div></div>';
   }
   return html;
 }*/
@@ -487,7 +501,7 @@ function renderFieldsRO(fields, dataObj) {
       } else {
         imgHtml = '<div class="qa-readonly-val">ไม่มีรูปภาพ</div>';
       }
-      html += '<div class="mb-3"><div class="qa-label">' + escHtml(f.label) + '</div>' + imgHtml + audit + '</div>';
+      html += '<div class="mb-3"><div class="qa-label">' + nlToBr(f.label) + '</div>' + imgHtml + audit + '</div>';
       continue;
     }
 
@@ -500,20 +514,20 @@ function renderFieldsRO(fields, dataObj) {
       continue;
     }
     if(f.type==="checkbox"){
-      html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div><div class="qa-readonly-val">'+((v==="Y"||v===true)?"✅ ใช่":"❌ ไม่ใช่")+'</div>'+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-val">'+((v==="Y"||v===true)?"✅ ใช่":"❌ ไม่ใช่")+'</div>'+audit+'</div>'; continue;
     }
     if(f.type==="link"){
       var url=escHtml(String(v)), isUrl=v&&v!=="-"&&(String(v).indexOf("http://")===0||String(v).indexOf("https://")===0);
-      html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div>'+(isUrl?'<a href="'+url+'" target="_blank" class="qa-readonly-link"><i class="bi bi-box-arrow-up-right me-2"></i>'+url+'</a>':'<div class="qa-readonly-val">'+url+'</div>')+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+(isUrl?'<a href="'+url+'" target="_blank" class="qa-readonly-link"><i class="bi bi-box-arrow-up-right me-2"></i>'+url+'</a>':'<div class="qa-readonly-val">'+url+'</div>')+audit+'</div>'; continue;
     }
     if(f.type==="money"){
-      html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div><div class="qa-readonly-money">'+_formatMoneyRO(v)+'</div>'+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-money">'+_formatMoneyRO(v)+'</div>'+audit+'</div>'; continue;
     }
     if(f.type==="toggle"){
       var isOn=v==="ON"||v==="Y"||v===true||v==="true";
-      html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div><span class="'+(isOn?"qa-readonly-toggle-on":"qa-readonly-toggle-off")+'">'+(isOn?"✅ เปิด":"❌ ปิด")+'</span>'+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><span class="'+(isOn?"qa-readonly-toggle-on":"qa-readonly-toggle-off")+'">'+(isOn?"✅ เปิด":"❌ ปิด")+'</span>'+audit+'</div>'; continue;
     }
-    html+='<div class="mb-3"><div class="qa-label">'+escHtml(f.label)+'</div><div class="qa-readonly-val">'+escHtml(String(v))+'</div>'+audit+'</div>';
+    html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-val">'+escHtml(String(v))+'</div>'+audit+'</div>';
   }
   return html;
 }
@@ -533,15 +547,35 @@ function getFormsForSection(sec) {
   });
 }
 
-// ── คำนวณความคืบหน้าระดับฟิลด์ (ไม่นับ divider) ──
+// ── คำนวณความคืบหน้าระดับฟิลด์ (ไม่นับ divider, image) ──
 function _calcFieldProgress(secId, allForms, dataObj) {
   var total = 0, completed = 0;
   (allForms || []).forEach(function(form) {
     if (!form.isActive) return;
+    // ── Form-level: ถ้า Form กำหนด sectionId ไว้ ให้ตรวจสอบก่อน ──
+    if (form.sectionId && form.sectionId !== "" && form.sectionId !== "null") {
+      var formSecIds = [];
+      try {
+        var sid = String(form.sectionId);
+        formSecIds = (sid.charAt(0) === "[") ? JSON.parse(sid) : [sid];
+      } catch(e) { formSecIds = [String(form.sectionId)]; }
+      if (formSecIds.length > 0 && formSecIds.indexOf(secId) < 0) return; // Form ไม่ใช่ของ Section นี้
+    }
+    // ── Field-level count ──────────────────────────────────────────
     (form.fields || []).forEach(function(field) {
-      if (field.type === "divider") return;
-      if (!field.sectionIds || !field.sectionIds.length || field.sectionIds.indexOf(secId) >= 0) {
-        total++;
+      if (field.type === "divider" || field.type === "image") return; // ไม่นับ divider และ image
+      if (field.sectionIds && field.sectionIds.length && field.sectionIds.indexOf(secId) < 0) return;
+      total++;
+      if (field.type === "table") {
+        // ตาราง: ข้อมูลเก็บในรูป key_rN_cN ไม่ใช่ key โดยตรง
+        var prefix = field.key + "_r";
+        var hasData = Object.keys(dataObj).some(function(k) {
+          return k.indexOf(prefix) === 0
+            && k.indexOf("_total_rows") < 0 && k.indexOf("_col_meta") < 0 && k.indexOf("_table_def") < 0
+            && dataObj[k] !== "" && dataObj[k] !== null && dataObj[k] !== undefined;
+        });
+        if (hasData) completed++;
+      } else {
         var v = dataObj[field.key];
         if (v !== undefined && v !== null && v !== "") completed++;
       }
@@ -642,19 +676,23 @@ function renderManagerDashboard() {
   var yd = APP.dashboard.filter(function(d) { return String(d.year) === String(year); });
 
   // คำนวณ progress จากจำนวนฟิลด์ที่กรอก
-  var totalFields = 0, completedFields = 0;
+  // totalFields = max fields ต่อ 1 section, completedFields = เฉลี่ยต่อ section
+  var _tfSum = 0, _cfSum = 0, _maxTF = 0;
   ms.forEach(function(sec) {
     var dashRow = null;
     for (var i = 0; i < yd.length; i++) { if (yd[i].sectionId === sec.sectionId) { dashRow = yd[i]; break; } }
     var dataObj = {};
     if (dashRow && dashRow.dataJson) { try { dataObj = JSON.parse(dashRow.dataJson); } catch(e) {} }
     var prog = _calcFieldProgress(sec.sectionId, APP.forms, dataObj);
-    totalFields += prog.total;
-    completedFields += prog.completed;
+    _tfSum += prog.total;
+    _cfSum += prog.completed;
+    if (prog.total > _maxTF) _maxTF = prog.total;
   });
+  var totalFields = _maxTF;
+  var completedFields = ms.length > 0 ? Math.round(_cfSum / ms.length) : 0;
   var sub = ms.filter(function(s) { return yd.some(function(d){ return d.sectionId === s.sectionId; }); }).length;
   var total = ms.length;
-  var pct = totalFields > 0 ? Math.round(completedFields / totalFields * 100) : 0;
+  var pct = _tfSum > 0 ? Math.round(_cfSum / _tfSum * 100) : 0;
 
   var headerDesc = document.querySelector("#view-manager-dashboard p.text-muted");
   if (headerDesc) {

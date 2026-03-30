@@ -6,6 +6,10 @@ function escHtml(str) {
   if (str === null || str === undefined) return "";
   return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 }
+function nlToBr(str) {
+  if (str === null || str === undefined) return "";
+  return escHtml(String(str)).replace(/\r\n/g, "<br>").replace(/\r/g, "<br>").replace(/\n/g, "<br>");
+}
 function showToast(msg, type) {
   type = type || "info";
   var c = document.getElementById("toast-cont");

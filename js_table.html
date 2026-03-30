@@ -31,8 +31,10 @@ function _fbTableEditorHTML(f) {
 
   // Col type options
   var colTypes = [
-    ["text","📝 ข้อความ"],["number","🔢 ตัวเลข"],["select","📋 Dropdown"],
-    ["date","📅 วันที่"]
+    ["text","📝 ข้อความ"],["number","🔢 ตัวเลข"],["textarea","📄 ข้อความยาว"],
+    ["date","📅 วันที่"],["select","📋 Dropdown"],["checkbox","☑️ Checkbox"],
+    ["toggle","🔘 Toggle"],["link","🔗 ลิงก์ URL"],["money","💰 จำนวนเงิน"],
+    ["image","🖼️ รูปภาพ"]
   ];
 
   // ── Columns section ──
@@ -45,7 +47,7 @@ function _fbTableEditorHTML(f) {
       : '';
     return '<div class="tbl-col-row" data-ci="'+ci+'">'
       + '<div class="tbl-col-num">'+(ci+1)+'</div>'
-      + '<input type="text" class="qa-input tbl-col-label" value="'+escHtml(col.label||"")+'" placeholder="ชื่อคอลัมน์" style="flex:1;font-size:.82rem;" oninput="_fbTableSync(\''+fid+'\');_fbUpdatePreview();">'
+      + '<textarea class="qa-input tbl-col-label" placeholder="ชื่อคอลัมน์" rows="1" style="flex:1;font-size:.82rem;resize:vertical;min-height:34px;" oninput="autoExpand(this);_fbTableSync(\''+fid+'\');_fbUpdatePreview();">'+escHtml(col.label||"")+'</textarea>'
       + '<select class="qa-input tbl-col-type" style="min-width:130px;font-size:.82rem;" onchange="_fbOnColTypeChange(\''+fid+'\',this,'+ci+');_fbTableSync(\''+fid+'\');_fbUpdatePreview();">'+typeOpts+'</select>'
       + '<button type="button" class="qa-btn-danger btn-xs" onclick="_fbTableRemoveCol(\''+fid+'\','+ci+')"><i class="bi bi-x"></i></button>'
       + '</div>'
@@ -56,7 +58,7 @@ function _fbTableEditorHTML(f) {
   var rowRows = (td.rows||[]).map(function(row, ri) {
     return '<div class="tbl-row-row" data-ri="'+ri+'">'
       + '<div class="tbl-col-num">'+(ri+1)+'</div>'
-      + '<input type="text" class="qa-input tbl-row-label" value="'+escHtml(row.label||"")+'" placeholder="ชื่อแถว" style="flex:1;font-size:.82rem;" oninput="_fbTableSync(\''+fid+'\');_fbUpdatePreview();">'
+      + '<textarea class="qa-input tbl-row-label" placeholder="ชื่อแถว" rows="1" style="flex:1;font-size:.82rem;resize:vertical;min-height:34px;" oninput="autoExpand(this);_fbTableSync(\''+fid+'\');_fbUpdatePreview();">'+escHtml(row.label||"")+'</textarea>'
       + '<button type="button" class="qa-btn-danger btn-xs" onclick="_fbTableRemoveRow(\''+fid+'\','+ri+')"><i class="bi bi-x"></i></button>'
       + '</div>';
   }).join("");
@@ -90,7 +92,7 @@ function _fbTableEditorHTML(f) {
     + (td.fixedRows
       ? '<div class="tbl-def-section">'
         + '<div class="tbl-def-header"><i class="bi bi-input-cursor-text me-1"></i>ชื่อหัวคอลัมน์แรก (ป้ายแถว)</div>'
-        + '<input type="text" class="qa-input tbl-row-header-label" value="'+escHtml(td.rowHeaderLabel||"")+'" placeholder="เช่น หัวข้อ, รายการ (เว้นว่างได้)" style="font-size:.82rem;" oninput="_fbTableSync(\''+fid+'\');_fbUpdatePreview();">'
+        + '<textarea class="qa-input tbl-row-header-label" placeholder="เช่น หัวข้อ, รายการ (เว้นว่างได้)" rows="1" style="font-size:.82rem;resize:vertical;min-height:34px;width:100%;" oninput="autoExpand(this);_fbTableSync(\''+fid+'\');_fbUpdatePreview();">'+escHtml(td.rowHeaderLabel||"")+'</textarea>'
         + '</div>'
       : '')
 
@@ -230,7 +232,7 @@ function _fbTablePreviewHTML(f) {
   }
   var dataCols = td.cols.filter(function(c){ return !c.isTotal; });
   var totalCols = td.cols.filter(function(c){ return c.isTotal; });
-  var hasNumCol = dataCols.some(function(c){ return c.type==="number"||c.type==="formula"; });
+  var hasNumCol = dataCols.some(function(c){ return c.type==="number"||c.type==="money"||c.type==="formula"; });
   var showRowTotal = td.hasRowTotal && hasNumCol;
   var showColTotal = td.hasColTotal && hasNumCol;
 
@@ -303,12 +305,19 @@ function _fbTablePreviewHTML(f) {
 function _previewCellInput(col) {
   var st = "width:100%;border:none;background:transparent;font-size:.78rem;padding:2px 4px;opacity:.8;";
   if (col.type==="number") return '<input type="number" disabled placeholder="0" style="'+st+'">';
+  if (col.type==="money")  return '<div style="display:flex;align-items:center;gap:3px;opacity:.8;"><span style="font-size:.76rem;color:var(--txt-muted);">฿</span><input type="number" disabled placeholder="0.00" style="'+st+'flex:1;"></div>';
   if (col.type==="date")   return '<input type="date" disabled style="'+st+'">';
   if (col.type==="select") {
     var opts = (col.options||"ตัวเลือก A,ตัวเลือก B").split(",").map(function(o){return '<option>'+escHtml(o.trim())+'</option>';}).join("");
     return '<select disabled style="'+st+'"><option>-- เลือก --</option>'+opts+'</select>';
   }
-  return '<input type="text" disabled placeholder="ข้อความ..." style="'+st+'">';
+  if (col.type==="checkbox") return '<div style="text-align:center;padding:4px;"><input type="checkbox" disabled style="width:16px;height:16px;"></div>';
+  if (col.type==="toggle")   return '<div style="display:flex;justify-content:center;padding:4px;"><div style="width:38px;height:20px;background:var(--border-2);border-radius:10px;opacity:.7;"></div></div>';
+  if (col.type==="link")     return '<input type="url" disabled placeholder="https://..." style="'+st+'">';
+  if (col.type==="image")    return '<div style="text-align:center;opacity:.7;font-size:.76rem;color:var(--txt-muted);"><i class="bi bi-image"></i> URL รูปภาพ</div>';
+  if (col.type==="textarea") return '<textarea disabled rows="2" style="'+st+'resize:none;width:100%;" placeholder="ข้อความ..."></textarea>';
+  // default: text — textarea เพื่อรองรับ Enter
+  return '<textarea disabled rows="1" style="'+st+'resize:none;width:100%;" placeholder="ข้อความ..."></textarea>';
 }
 
 // ── Override _fbExtraHTML for table ─────────────────────────
@@ -333,7 +342,7 @@ function renderTableField(field) {
   var fkey = field.key;
   var dataCols = td.cols.filter(function(c){return !c.isTotal;});
   var totalCols = td.cols.filter(function(c){return c.isTotal;});
-  var hasNumCol = dataCols.some(function(c){return c.type==="number"||c.type==="formula";});
+  var hasNumCol = dataCols.some(function(c){return c.type==="number"||c.type==="money"||c.type==="formula";});
   var showRowTotal = td.hasRowTotal && hasNumCol;
   var showColTotal = td.hasColTotal && hasNumCol;
 
@@ -409,6 +418,12 @@ function _buildCellInput(ckey, col, fkey, ri, ci, showRowTotal, showColTotal, td
   if (col.type==="number") {
     return '<input type="number" step="any" class="qa-input tbl-num-input" name="'+escHtml(ckey)+'" data-row="'+ri+'" data-col="'+ci+'" placeholder="0" oninput="'+onInput+'" style="'+st+'">';
   }
+  if (col.type==="money") {
+    return '<div style="display:flex;align-items:center;gap:4px;">'
+      +'<span style="color:var(--txt-muted);font-size:.8rem;flex-shrink:0;">฿</span>'
+      +'<input type="number" step="any" class="qa-input tbl-num-input" name="'+escHtml(ckey)+'" data-row="'+ri+'" data-col="'+ci+'" placeholder="0.00" oninput="'+onInput+'" style="'+st+'">'
+      +'</div>';
+  }
   if (col.type==="date") {
     return '<input type="date" class="qa-input" name="'+escHtml(ckey)+'" style="'+st+'">';
   }
@@ -417,7 +432,46 @@ function _buildCellInput(ckey, col, fkey, ri, ci, showRowTotal, showColTotal, td
       + (col.options||"").split(",").map(function(o){return '<option value="'+escHtml(o.trim())+'">'+escHtml(o.trim())+'</option>';}).join("");
     return '<select class="qa-input" name="'+escHtml(ckey)+'" style="'+st+'">'+opts+'</select>';
   }
-  return '<input type="text" class="qa-input" name="'+escHtml(ckey)+'" placeholder="กรอกข้อมูล..." style="'+st+'">';
+  if (col.type==="checkbox") {
+    return '<div style="text-align:center;padding:6px;">'
+      +'<input type="checkbox" class="tbl-chk-input" name="'+escHtml(ckey)+'" value="ON" onchange="'+onInput+'" style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary);">'
+      +'</div>';
+  }
+  if (col.type==="toggle") {
+    return '<div style="display:flex;justify-content:center;padding:4px;">'
+      +'<label style="display:flex;align-items:center;cursor:pointer;gap:6px;">'
+      +'<input type="checkbox" class="tbl-toggle-chk" name="'+escHtml(ckey)+'" value="ON" onchange="'+onInput+';_updateToggleUI(this)" style="display:none;">'
+      +'<div class="tbl-toggle-track" onclick="this.previousElementSibling.click()" style="width:40px;height:22px;background:var(--border-2);border-radius:11px;position:relative;transition:.2s;flex-shrink:0;">'
+      +'<div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>'
+      +'</div>'
+      +'</label>'
+      +'</div>';
+  }
+  if (col.type==="link") {
+    return '<input type="url" class="qa-input" name="'+escHtml(ckey)+'" placeholder="https://..." style="'+st+'">';
+  }
+  if (col.type==="image") {
+    return '<input type="text" class="qa-input" name="'+escHtml(ckey)+'" placeholder="URL รูปภาพ..." style="'+st+'">';
+  }
+  if (col.type==="textarea") {
+    return '<textarea class="qa-input" name="'+escHtml(ckey)+'" rows="2" placeholder="กรอกข้อมูล..." style="'+st+'resize:vertical;min-height:60px;" oninput="autoExpand(this);"></textarea>';
+  }
+  // default: text — ใช้ textarea เพื่อรองรับ Enter เพิ่มบรรทัด
+  return '<textarea class="qa-input" name="'+escHtml(ckey)+'" rows="1" placeholder="กรอกข้อมูล..." style="'+st+'resize:vertical;min-height:34px;" oninput="autoExpand(this);"></textarea>';
+}
+
+// อัปเดต UI ของ Toggle เมื่อสถานะเปลี่ยน
+function _updateToggleUI(chk) {
+  var track = chk.nextElementSibling;
+  if (!track) return;
+  var knob = track.querySelector("div");
+  if (chk.checked) {
+    track.style.background = "var(--success)";
+    if (knob) knob.style.left = "20px";
+  } else {
+    track.style.background = "var(--border-2)";
+    if (knob) knob.style.left = "2px";
+  }
 }
 
 function _buildDynRow(fkey, ri, td, showRowTotal, showColTotal) {
@@ -443,7 +497,7 @@ function addEnhancedDynRow(fkey) {
   // Get tableDef from hidden input
   var metaEl = document.querySelector('[name="'+fkey+'_table_def"]');
   var td = null; try { td=JSON.parse(metaEl?metaEl.value:"{}"); } catch(e) { td={cols:[]}; }
-  var hasNumCol = (td.cols||[]).some(function(c){return c.type==="number"||c.type==="formula";});
+  var hasNumCol = (td.cols||[]).some(function(c){return c.type==="number"||c.type==="money"||c.type==="formula";});
   var showRowTotal = td.hasRowTotal && hasNumCol;
   var showColTotal = td.hasColTotal && hasNumCol;
   tbody.insertAdjacentHTML("beforeend", _buildDynRow(fkey, ri, td, showRowTotal, showColTotal));
@@ -456,7 +510,7 @@ function onTblInput(fkey) {
   var metaEl = document.querySelector('[name="'+fkey+'_table_def"]');
   var td = null; try { td=JSON.parse(metaEl?metaEl.value:"{}"); } catch(e) { return; }
   if (!td || !td.cols) return;
-  var hasNumCol = td.cols.some(function(c){return c.type==="number"||c.type==="formula";});
+  var hasNumCol = td.cols.some(function(c){return c.type==="number"||c.type==="money"||c.type==="formula";});
   if (!hasNumCol) return;
   var showRowTotal = td.hasRowTotal && hasNumCol;
   var showColTotal = td.hasColTotal && hasNumCol;
@@ -475,7 +529,7 @@ function onTblInput(fkey) {
 
     td.cols.forEach(function(col, ci) {
       if (!col.isTotal && col.type !== "formula") {
-        if (col.type === "number") {
+        if (col.type === "number" || col.type === "money") {
           var inp = tr.querySelector('[name="'+fkey+'_r'+ri+'_c'+ci+'"]');
           var val = inp ? (parseFloat(inp.value)||0) : 0;
           rowSum += val;
@@ -517,7 +571,7 @@ function _renderEnhancedTableRO(field, dataObj) {
     return _renderTableRO(field.label, field.key, field.columns||"", dataObj);
   }
   var fkey = field.key;
-  var hasNumCol = td.cols.some(function(c){return c.type==="number"||c.type==="formula";});
+  var hasNumCol = td.cols.some(function(c){return c.type==="number"||c.type==="money"||c.type==="formula";});
   var showRowTotal = td.hasRowTotal && hasNumCol;
   var showColTotal = td.hasColTotal && hasNumCol;
 
@@ -574,8 +628,8 @@ function _renderEnhancedTableRO(field, dataObj) {
           tbody += '<td class="tbl-cell-auto">'+(s?_fmtNum(s):"—")+'</td>';
         } else {
           var val = dataObj[ckey]||"—";
-          if (col.type==="number") { var n=parseFloat(val); rowSum+=(isNaN(n)?0:n); rowHasNum=true; colTotals[ci]=(colTotals[ci]||0)+(isNaN(n)?0:n); }
-          tbody += '<td style="border:1px solid var(--border);padding:5px 9px;font-size:.82rem;">'+escHtml(String(val))+'</td>';
+          if (col.type==="number"||col.type==="money") { var n=parseFloat(val); rowSum+=(isNaN(n)?0:n); rowHasNum=true; colTotals[ci]=(colTotals[ci]||0)+(isNaN(n)?0:n); }
+          tbody += '<td style="border:1px solid var(--border);padding:5px 9px;font-size:.82rem;">'+_renderCellRO(col, val)+'</td>';
         }
       });
       if (showRowTotal && !isTotal) {
@@ -602,9 +656,9 @@ function _renderEnhancedTableRO(field, dataObj) {
       td.cols.forEach(function(col, ci) {
         var ckey = fkey+"_r"+ri+"_c"+ci;
         var val = dataObj[ckey]||"";
-        if (col.type==="number"&&!col.isTotal) { var n=parseFloat(val); rowSum+=(isNaN(n)?0:n); rowHasNum=true; colTotals[ci]=(colTotals[ci]||0)+(isNaN(n)?0:n); }
+        if ((col.type==="number"||col.type==="money")&&!col.isTotal) { var n=parseFloat(val); rowSum+=(isNaN(n)?0:n); rowHasNum=true; colTotals[ci]=(colTotals[ci]||0)+(isNaN(n)?0:n); }
         if (col.isTotal||col.type==="formula") tbody += '<td class="tbl-cell-auto">—</td>';
-        else tbody += '<td style="border:1px solid var(--border);padding:5px 9px;font-size:.82rem;">'+escHtml(val||"—")+'</td>';
+        else tbody += '<td style="border:1px solid var(--border);padding:5px 9px;font-size:.82rem;">'+_renderCellRO(col, val||"—")+'</td>';
       });
       if (showRowTotal) { tbody += '<td class="tbl-cell-auto tbl-row-sum">'+(rowHasNum?_fmtNum(rowSum):"—")+'</td>'; if(rowHasNum) grandTotal+=rowSum; }
       tbody += '</tr>';
@@ -619,7 +673,7 @@ function _renderEnhancedTableRO(field, dataObj) {
     if (td.fixedRows) tfoot += '<td class="tbl-row-header">รวม</td>';
     else tfoot += '<td class="tbl-cell-auto" style="background:var(--primary-ul);color:var(--primary);font-weight:700;border:1px solid var(--border);padding:5px 9px;">รวม</td>';
     td.cols.forEach(function(col, ci) {
-      var isNum = col.type==="number"||col.type==="formula";
+      var isNum = col.type==="number"||col.type==="money"||col.type==="formula";
       tfoot += '<td class="tbl-cell-auto" style="background:var(--primary-ul);color:var(--primary);font-weight:700;">'+(isNum&&colTotals[ci]!==undefined?_fmtNum(colTotals[ci]):"—")+'</td>';
     });
     if (showRowTotal) tfoot += '<td class="tbl-cell-auto" style="background:var(--primary-ul);color:var(--primary);font-weight:700;">'+_fmtNum(grandTotal)+'</td>';
@@ -630,5 +684,35 @@ function _renderEnhancedTableRO(field, dataObj) {
     + '<table class="qa-data-table qa-enhanced-table"><thead>'+thead+'</thead><tbody>'+tbody+'</tbody>'+tfoot+'</table>'
     + '</div></div>';
   return html;
+}
+
+// ── Render cell value ใน Readonly view ─────────────────────────
+function _renderCellRO(col, val) {
+  if (!val || val === "—") return '<span style="color:var(--txt-muted);">—</span>';
+  var v = String(val);
+  if (col.type === "money") {
+    var n = parseFloat(v);
+    return '<span style="color:var(--success);font-weight:600;">฿ '+(isNaN(n)?escHtml(v):_fmtNum(n))+'</span>';
+  }
+  if (col.type === "number") {
+    var n2 = parseFloat(v);
+    return isNaN(n2) ? escHtml(v) : _fmtNum(n2);
+  }
+  if (col.type === "checkbox" || col.type === "toggle") {
+    var isOn = v === "ON" || v === "true" || v === "1";
+    return isOn
+      ? '<span style="color:var(--success);font-weight:600;"><i class="bi bi-check-circle-fill me-1"></i>เปิด</span>'
+      : '<span style="color:var(--txt-muted);"><i class="bi bi-x-circle me-1"></i>ปิด</span>';
+  }
+  if (col.type === "link") {
+    return v.startsWith("http") ? '<a href="'+escHtml(v)+'" target="_blank" style="color:var(--primary);word-break:break-all;">'+escHtml(v)+'</a>' : escHtml(v);
+  }
+  if (col.type === "image") {
+    return v.startsWith("http") ? '<a href="'+escHtml(v)+'" target="_blank"><img src="'+escHtml(v)+'" style="max-height:48px;max-width:80px;border-radius:4px;object-fit:contain;"></a>' : escHtml(v);
+  }
+  if (col.type === "textarea") {
+    return '<span style="white-space:pre-wrap;word-break:break-word;">'+escHtml(v)+'</span>';
+  }
+  return '<span style="white-space:pre-wrap;word-break:break-word;">'+escHtml(v)+'</span>';
 }
 </script>

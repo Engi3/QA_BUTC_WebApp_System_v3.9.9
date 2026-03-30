@@ -586,7 +586,7 @@ function executeDelete() {
       APP.iqaSchema.phases.splice(phiDel, 1);
       _iqaBuilderActivePhaseIdx = Math.max(0, phiDel - 1);
       _iqaBuilderRender();
-      showToast('ลบ Phase "'+name+'" แล้ว (กดบันทึก Schema เพื่อยืนยัน)',"success");
+      iqaSaveSchema();
     }
     reset();
   } else if (type==="iqa-page") {
@@ -596,7 +596,7 @@ function executeDelete() {
     if (APP.iqaSchema && APP.iqaSchema.phases && APP.iqaSchema.phases[phiP]) {
       APP.iqaSchema.phases[phiP].pages.splice(pgiP, 1);
       _iqaBuilderRender();
-      showToast('ลบ Page "'+name+'" แล้ว',"success");
+      iqaSaveSchema();
     }
     reset();
 
@@ -1223,8 +1223,8 @@ function editForm(formId) {
   document.getElementById("form-id-hidden").value = form.formId;
   document.getElementById("form-name").value = form.formName;
   if (document.getElementById("form-section-id")) document.getElementById("form-section-id").value = form.sectionId||"";
-  if (document.getElementById("form-desc")) document.getElementById("form-desc").value = form.description||"";
-  if (document.getElementById("form-note")) document.getElementById("form-note").value = form.note||"";
+  if (document.getElementById("form-desc")) { document.getElementById("form-desc").value = form.description||""; autoExpand(document.getElementById("form-desc")); }
+  if (document.getElementById("form-note")) { document.getElementById("form-note").value = form.note||""; autoExpand(document.getElementById("form-note")); }
   if (typeof _fbFields!=="undefined") {
     _fbFields = (form.fields||[]).map(function(f){return {id:"f"+Date.now()+Math.random().toString(36).slice(2,5),type:f.type||"text",label:f.label||"",required:!!f.required,desc:f.desc||"",placeholder:f.placeholder||"",options:f.options||"",columns:f.columns||"",sectionIds:f.sectionIds||[],items:f.items||[],imageData:f.imageData||"",tableDef:f.tableDef||null};});
     if (typeof _fbRenderAll==="function")     _fbRenderAll();

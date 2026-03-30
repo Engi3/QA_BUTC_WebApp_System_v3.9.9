@@ -346,7 +346,7 @@ function renderOneField(field) {
     return '<div class="qa-form-divider"></div>';
   }
 
-  var lbl  = field.label ? '<label class="qa-label">'+escHtml(field.label)+(field.required?'<span style="color:var(--danger);"> *</span>':"")+' </label>' : "";
+  var lbl  = field.label ? '<label class="qa-label">'+nlToBr(field.label)+(field.required?'<span style="color:var(--danger);"> *</span>':"")+' </label>' : "";
 
   // ── Badge ผู้รับผิดชอบ ────────────────────────────────────
   var sids = field.sectionIds || [];
@@ -363,7 +363,7 @@ function renderOneField(field) {
   var ownerBadge = '<div class="qa-field-owner">'+ownerInner+'</div>';
   // ─────────────────────────────────────────────────────────
 
-  var desc = (field.desc ? '<div style="font-size:.75rem;color:var(--info);margin-bottom:5px;"><i class="bi bi-info-circle me-1"></i>'+escHtml(field.desc)+'</div>' : "");
+  var desc = (field.desc ? '<div style="font-size:.75rem;color:var(--info);margin-bottom:5px;"><i class="bi bi-info-circle me-1"></i>'+nlToBr(field.desc)+'</div>' : "");
   desc = ownerBadge + desc; // badge อยู่ก่อน desc เสมอ
 
   switch (field.type) {

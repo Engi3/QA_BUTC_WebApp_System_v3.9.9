@@ -328,6 +328,7 @@ function iqaDeleteItem(phaseIdx, pageIdx, itemIdx) {
   if (!confirm('ลบ "'+label+'" ใช่หรือไม่?')) return;
   page[pageIdx].items.splice(itemIdx, 1);
   _iqaBuilderRender();
+  iqaSaveSchema();
 }
 
 // ── Mapping Dropdowns (inline in builder) ───────────────────

@@ -14,8 +14,8 @@ function _fbLoadForm(formId) {
   clearFormBuilder();
   document.getElementById("form-id-hidden").value  = form.formId;
   document.getElementById("form-name").value        = form.formName;
-  if (document.getElementById("form-desc")) document.getElementById("form-desc").value = form.description||"";
-  if (document.getElementById("form-note")) document.getElementById("form-note").value  = form.note||"";
+  if (document.getElementById("form-desc")) { document.getElementById("form-desc").value = form.description||""; autoExpand(document.getElementById("form-desc")); }
+  if (document.getElementById("form-note")) { document.getElementById("form-note").value = form.note||""; autoExpand(document.getElementById("form-note")); }
 
   _fbFields = (form.fields||[]).map(function(f) {
     return { id:_fbId(), type:f.type||"text", label:f.label||"", required:!!f.required,
@@ -67,6 +67,12 @@ function _fbRenderAll() {
     return;
   }
   list.innerHTML = _fbFields.map(function(f,fi){ return _buildFieldItemHTML(f,fi); }).join("");
+  // ปรับความสูง textarea ให้พอดีกับเนื้อหาที่มีอยู่
+  setTimeout(function() {
+    list.querySelectorAll("textarea.fb-label-input, textarea.fb-desc-input, textarea.fb-item-label").forEach(function(ta) {
+      autoExpand(ta);
+    });
+  }, 0);
 }
 
 // ✅ 2. วาดส่วนให้ Section ใดกรอก (ระดับฟิลด์ย่อย) ให้มี Accordion ในตัว
@@ -140,7 +146,7 @@ function _buildFieldItemHTML(f, fi) {
     +'<div class="fb-field-header">'
     +'<span class="fb-field-handle"><i class="bi bi-grip-vertical"></i></span>'
     +'<span style="background:var(--primary-ul);color:var(--primary);padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:700;flex-shrink:0;">'+typeBadgeStyle+'</span>'
-    +'<span style="flex:1;font-size:.84rem;font-weight:600;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(f.label||'(ยังไม่มีชื่อ)')+'</span>'
+    +'<span style="flex:1;font-size:.84rem;font-weight:600;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+((f.label||'').split('\n')[0]||'(ยังไม่มีชื่อ)')+'</span>'
     +'<div class="fb-field-actions">'
     +(fi>0?'<button type="button" class="qa-icon-btn" onclick="fbMoveField(\''+f.id+'\',-1)" title="ขึ้น"><i class="bi bi-arrow-up"></i></button>':'')
     +(fi<_fbFields.length-1?'<button type="button" class="qa-icon-btn" onclick="fbMoveField(\''+f.id+'\',1)" title="ลง"><i class="bi bi-arrow-down"></i></button>':'')
@@ -150,19 +156,20 @@ function _buildFieldItemHTML(f, fi) {
     +'<div class="fb-field-body">'
     +'<div class="fb-row">'
     +'<div class="fb-col-1"><span class="fb-mini-label">ชื่อฟิลด์</span>'
-    +'<input type="text" class="qa-input fb-label-input" value="'+escHtml(f.label)+'" placeholder="ชื่อฟิลด์..." oninput="_fbSyncOne(\''+f.id+'\');_fbUpdatePreview();"></div>'
+    +'<textarea rows="1" class="qa-input fb-label-input" placeholder="ชื่อฟิลด์..." style="resize:vertical;min-height:34px;overflow:hidden;" oninput="autoExpand(this);_fbSyncOne(\''+f.id+'\');_fbUpdatePreview();">'+escHtml(f.label)+'</textarea></div>'
     +'<div class="fb-col-2"><span class="fb-mini-label">ประเภท</span>'
     +'<select class="qa-input fb-type-select" onchange="_fbOnTypeChange(\''+f.id+'\',this.value);">'+typeOpts+'</select></div>'
     +'</div>'
     +(f.type!=="divider"?'<div class="fb-row"><div style="flex:1;"><span class="fb-mini-label">คำอธิบาย/ช่วยเหลือ</span>'
-    +'<input type="text" class="qa-input fb-desc-input" value="'+escHtml(f.desc)+'" placeholder="คำอธิบายสำหรับผู้กรอก..." oninput="_fbSyncOne(\''+f.id+'\');">'
+    +'<textarea rows="1" class="qa-input fb-desc-input" placeholder="คำอธิบายสำหรับผู้กรอก..." style="resize:vertical;min-height:34px;overflow:hidden;" oninput="autoExpand(this);_fbSyncOne(\''+f.id+'\');">'+escHtml(f.desc)+'</textarea>'
     +'</div><div style="flex-shrink:0;padding-top:20px;"><label class="qa-check-item" style="font-size:.82rem;gap:5px;">'
     +'<input type="checkbox" class="fb-req-chk"'+(f.required?" checked":"")+'><span>บังคับกรอก</span></label>'
     +'</div></div>':"")
     +extraHTML+itemsHTML+imageHTML+tableHTML
     
-    // โครงสร้าง Accordion กล่องพับ
-    +'<div class="qa-chip-wrap mt-2" style="width: 100%;">'
+    // โครงสร้าง Accordion กล่องพับ — ไม่แสดงสำหรับ divider
+    +(f.type !== 'divider'
+    ? '<div class="qa-chip-wrap mt-2" style="width: 100%;">'
     +'  <div class="qa-generic-accordion-head" onclick="toggleGenericAccordion(\'fb-sec-collapse-'+f.id+'\', \'fb-sec-chevron-'+f.id+'\', \'fb-sec-container-'+f.id+'\')">'
     +'    <i class="bi bi-chevron-right" id="fb-sec-chevron-'+f.id+'" style="transition:0.2s; color:var(--txt-muted); transform:rotate(90deg);"></i>'
     +'    <span style="flex:1; cursor:pointer; margin-top:2px; font-size:.82rem; font-weight:700; color:var(--txt-2);">ให้ Section ใดกรอก (ระดับฟิลด์)</span>'
@@ -179,6 +186,7 @@ function _buildFieldItemHTML(f, fi) {
     +'  </div>'
     +'  <div id="fb-sec-container-'+f.id+'_summary" style="display:'+(secCount>0?'flex':'none')+'; flex-wrap:wrap; gap:6px; margin-top:8px; padding:0;">'+summaryChips+'</div>'
     +'</div>'
+    : '')
     +'</div></div>';
 }
 
@@ -199,7 +207,7 @@ function _fbItemsHTML(f) {
   var rows  = items.map(function(lb,ii){
     return '<div class="fb-item-row">'
       +(isChk?'<i class="bi bi-square" style="color:var(--txt-muted);flex-shrink:0;"></i>':'<i class="bi bi-toggle-off" style="color:var(--txt-muted);flex-shrink:0;"></i>')
-      +'<input type="text" class="qa-input fb-item-label" value="'+escHtml(lb)+'" placeholder="ชื่อตัวเลือก" style="flex:1;" oninput="_fbSyncOne(\''+f.id+'\');_fbUpdatePreview();">'
+      +'<textarea rows="1" class="qa-input fb-item-label" placeholder="ชื่อตัวเลือก" style="flex:1;resize:vertical;min-height:34px;overflow:hidden;" oninput="autoExpand(this);_fbSyncOne(\''+f.id+'\');_fbUpdatePreview();">'+escHtml(lb)+'</textarea>'
       +'<button type="button" class="qa-btn-danger btn-xs" onclick="_fbRemoveItem(\''+f.id+'\','+ii+')"><i class="bi bi-x"></i></button>'
       +'</div>';
   }).join("");
@@ -405,11 +413,11 @@ function _fbUpdatePreview() {
       if(!f.label&&f.type!=="image"&&f.type!=="divider")return;
       html+='<div style="margin-bottom:16px;">'; 
       if(f.type==="divider"){ 
-        html+=(f.label?'<div style="display:flex;align-items:center;gap:10px;margin:4px 0;"><hr style="flex:1;border:none;border-top:2px solid var(--glass-border);margin:0;"><span style="font-size:.78rem;font-weight:700;color:var(--txt-3);">'+escHtml(f.label)+'</span><hr style="flex:1;border:none;border-top:2px solid var(--glass-border);margin:0;"></div>':'<hr style="border:none;border-top:2px dashed var(--glass-border);">'); 
+        html+=(f.label?'<div style="display:flex;align-items:center;gap:10px;margin:4px 0;"><hr style="flex:1;border:none;border-top:2px solid var(--glass-border);margin:0;"><span style="font-size:.78rem;font-weight:700;color:var(--txt-3);">'+nlToBr(f.label)+'</span><hr style="flex:1;border:none;border-top:2px solid var(--glass-border);margin:0;"></div>':'<hr style="border:none;border-top:2px dashed var(--glass-border);">'); 
         html+='</div>'; return; 
       }
-      html+='<div style="font-size:.75rem;font-weight:700;color:var(--txt-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">'+escHtml(f.label||"(ไม่มีชื่อ)")+(f.required?'<span style="color:var(--danger);"> *</span>':"")+' </div>';
-      if(f.desc)html+='<div style="font-size:.74rem;color:var(--info);margin-bottom:5px;"><i class="bi bi-info-circle me-1"></i>'+escHtml(f.desc)+'</div>';
+      html+='<div style="font-size:.75rem;font-weight:700;color:var(--txt-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">'+nlToBr(f.label||"(ไม่มีชื่อ)")+(f.required?'<span style="color:var(--danger);"> *</span>':"")+' </div>';
+      if(f.desc)html+='<div style="font-size:.74rem;color:var(--info);margin-bottom:5px;"><i class="bi bi-info-circle me-1"></i>'+nlToBr(f.desc)+'</div>';
       
       switch(f.type){
         case "textarea": html+='<textarea class="qa-input" rows="2" disabled style="opacity:.7;width:100%;resize:none;"></textarea>'; break;
