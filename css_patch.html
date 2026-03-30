@@ -416,21 +416,49 @@ div[id$="-picker-modal"] > div {
 .iqa-pending-dot { color: var(--warning); font-size: .88rem; }
 
 /* ── Enhanced Table ─────────────────────────────────────────── */
-.qa-enhanced-table { width: 100%; border-collapse: collapse; font-size: .82rem; table-layout: auto; }
-.tbl-hd         { background: #f2f2f2; color: #333; padding: 10px 12px; font-size: .76rem; font-weight: 700; text-align: center; border: 1px solid #ddd; white-space: pre-wrap; min-width: 100px; vertical-align: middle; }
-.tbl-row-header { background: rgba(0,0,0,.04); font-weight: 700; font-size: .8rem; color: var(--txt-2); border: 1px solid var(--glass-border); padding: 10px 12px; white-space: pre-wrap; width: 25%; min-width: 150px; vertical-align: top; }
-.tbl-cell       { padding: 8px; border: 1px solid var(--border); min-width: 120px; vertical-align: top; }
-.tbl-cell-auto  { padding: 8px; border: 1px solid var(--border); background: var(--surface-2); text-align: center; font-weight: 700; color: var(--primary); vertical-align: middle; min-width: 80px; }
-.tbl-row-total  { background: var(--primary-ul); }
-.tbl-total-col  { background: #e8e8e8; font-weight: 800; color: var(--primary); }
-.qa-table-wrap  { margin-top: 10px; border-radius: var(--r-sm); overflow: hidden; border: 1.5px solid var(--border); }
-[data-theme="dark"] .tbl-row-header { background: rgba(255,255,255,.04); }
-.tbl-cell       { border: 1px solid var(--glass-border); padding: 3px; }
-.tbl-cell input, .tbl-cell select { width: 100%; border: none; background: transparent; font-size: .82rem; padding: 3px 6px; outline: none; color: var(--txt); }
-.tbl-cell-auto  { border: 1px solid var(--glass-border); padding: 5px 9px; text-align: center; font-weight: 700; color: var(--success); font-size: .82rem; background: var(--success-l); }
-.tbl-row-total td  { background: var(--primary-ul) !important; color: var(--primary) !important; font-weight: 700; }
-.tbl-row-sum       { background: var(--success-l) !important; color: var(--success) !important; font-weight: 700; }
-.tbl-col-total-row td { background: var(--primary-ul) !important; color: var(--primary) !important; font-weight: 700; }
+/* ── Enhanced Table (Restructured for Balance) ──────────────── */
+.qa-table-wrap { 
+  margin: 12px 0; border-radius: 8px; overflow: hidden; 
+  border: 1px solid var(--border); background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+.qa-enhanced-table { 
+  width: 100%; border-collapse: collapse; font-size: .82rem; 
+  table-layout: fixed; /* บังคับให้คอลัมน์บาลานซ์เท่ากัน */
+}
+.tbl-hd { 
+  background: var(--surface-3); color: var(--txt); padding: 12px 10px; 
+  font-size: .75rem; font-weight: 700; text-align: center; 
+  border: 1px solid var(--border); white-space: pre-wrap; 
+  vertical-align: middle; line-height: 1.4;
+  word-break: break-word;
+}
+.tbl-row-header { 
+  background: var(--surface-2); font-weight: 700; font-size: .8rem; 
+  color: var(--txt-2); border: 1px solid var(--border); padding: 12px; 
+  white-space: pre-wrap; width: 180px; /* กำหนดความกว้างคอลัมน์แรกให้คงที่ */
+  min-width: 150px; vertical-align: top; line-height: 1.5;
+  word-break: break-word; overflow-wrap: anywhere;
+}
+.tbl-cell { 
+  padding: 8px; border: 1px solid var(--border); 
+  vertical-align: top; word-break: break-word;
+}
+.tbl-cell-auto { 
+  padding: 10px; border: 1px solid var(--border); 
+  background: var(--success-l); text-align: center; 
+  font-weight: 700; color: var(--success); 
+  vertical-align: middle; width: 80px;
+}
+.tbl-row-total td { background: var(--primary-ul) !important; color: var(--primary) !important; font-weight: 800; }
+.tbl-total-col { background: rgba(0,0,0,.02); font-weight: 800; color: var(--primary); }
+
+/* ปรับแต่ง Input ภายในตารางให้บาลานซ์ */
+.tbl-cell .qa-input, .tbl-cell select {
+  width: 100% !important; max-width: 100%; box-sizing: border-box;
+}
+.tbl-cell .qa-radio-group { padding: 4px 0; }
+
 .tbl-def-editor { background: var(--glass-bg); border: 1.5px solid var(--glass-border); border-radius: var(--r-sm); padding: 14px; margin-top: 4px; }
 .tbl-def-section { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px dashed var(--glass-border); }
 .tbl-def-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
