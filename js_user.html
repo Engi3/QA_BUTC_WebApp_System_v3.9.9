@@ -549,7 +549,21 @@ function fillFormData(container, dataObj) {
     container.querySelectorAll('[name="'+key+'"]').forEach(function(el) {
       if (el.type === "radio") el.checked = (String(el.value) === String(dataObj[key]));
       else if (el.type === "checkbox") el.checked = (dataObj[key]==="Y"||dataObj[key]===true||dataObj[key]==="ON"||String(el.value)===String(dataObj[key]));
-      else { el.value = dataObj[key]; if (el.tagName === "TEXTAREA") autoExpand(el); }
+      else {
+          el.value = dataObj[key];
+          if (el.tagName === "TEXTAREA") autoExpand(el);
+          // ── Restore image preview for hidden image fields ──
+          if (el.type === "hidden" && el.id === "hidden-" + key && dataObj[key] && String(dataObj[key]).indexOf("data:image") === 0) {
+            var prevBox = document.getElementById("prev-box-" + key);
+            var prevImg = document.getElementById("prev-img-" + key);
+            var upBox   = document.getElementById("upload-box-" + key);
+            if (prevBox && prevImg) {
+              prevImg.src = dataObj[key];
+              prevBox.style.display = "block";
+              if (upBox) upBox.style.display = "none";
+            }
+          }
+        }
     });
     // Handle select with allowCustom: if saved value not in options, use __custom__ + fill textarea
     container.querySelectorAll('select[name="'+key+'"]').forEach(function(sel) {

@@ -578,18 +578,35 @@ function saveFormData(sectionId, sectionName, year, formDataObj, userEmail, user
 
     // Merge ข้อมูลเก่ากับใหม่
     const mergedData = { ...existingData, ...formDataObj };
-    const dataJson   = JSON.stringify(mergedData);
+
+    // ── แยกเก็บ image data (base64) ไปยัง column 9 (col I) เพื่อหลีกเลี่ยง cell size limit ──
+    const imageData  = {};
+    const textData   = {};
+    Object.keys(mergedData).forEach(function(k) {
+      if (mergedData[k] && String(mergedData[k]).indexOf("data:image") === 0) {
+        imageData[k] = mergedData[k];
+      } else {
+        textData[k] = mergedData[k];
+      }
+    });
+    const dataJson      = JSON.stringify(textData);
+    const imageDataJson = Object.keys(imageData).length > 0 ? JSON.stringify(imageData) : "";
+
+    if (dataJson.length > 49000) {
+      return { success: false, message: "ข้อมูลข้อความมีขนาดใหญ่เกินไป (" + dataJson.length + " ตัวอักษร) กรุณาลดจำนวนข้อมูลในตาราง" };
+    }
 
     if (rowToUpdate > 0) {
       sheet.getRange(rowToUpdate, 2).setValue(userEmail);
       sheet.getRange(rowToUpdate, 6).setValue(timestamp);
       sheet.getRange(rowToUpdate, 7).setValue(dataJson);
       sheet.getRange(rowToUpdate, 8).setValue(userName);
+      sheet.getRange(rowToUpdate, 9).setValue(imageDataJson);
     } else {
       sheet.appendRow([
         timestamp, userEmail, year,
         sectionId, sectionName,
-        timestamp, dataJson, userName
+        timestamp, dataJson, userName, imageDataJson
       ]);
     }
 
@@ -610,13 +627,22 @@ function fetchDashboardData() {
       const lUpdate = data[i][5] instanceof Date
         ? data[i][5].toISOString()
         : data[i][5];
+      // ── Merge text data (col 7) + image data (col 9) กลับเป็น dataJson เดียว ──
+      let mergedJson = data[i][6] || "{}";
+      if (data[i][8]) {
+        try {
+          const textObj  = JSON.parse(data[i][6] || "{}");
+          const imageObj = JSON.parse(data[i][8] || "{}");
+          mergedJson = JSON.stringify({ ...textObj, ...imageObj });
+        } catch(e) {}
+      }
       summary.push({
         year:          data[i][2],
         sectionId:     data[i][3],
         sectionName:   data[i][4],
         lastUpdate:    lUpdate,
         submitterName: data[i][7] || data[i][1],
-        dataJson:      data[i][6]
+        dataJson:      mergedJson
       });
     }
     return { success: true, data: summary };
@@ -634,7 +660,11 @@ function fetchSectionData(sectionId, year) {
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][2]) === String(year) && data[i][3] === sectionId) {
         let parsed = {};
-        try { parsed = JSON.parse(data[i][6] || "{}"); } catch(e) {}
+        try {
+          const textObj  = JSON.parse(data[i][6] || "{}");
+          const imageObj = data[i][8] ? JSON.parse(data[i][8]) : {};
+          parsed = { ...textObj, ...imageObj };
+        } catch(e) {}
         return {
           success:       true,
           data:          parsed,
@@ -1043,8 +1073,9 @@ function clearSectionData(adminEmail, adminPassword, targetYear, targetSectionId
     const data      = dataSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][2]) === String(targetYear) && data[i][3] === targetSectionId) {
-        // ล้างข้อมูลทั้งหมดของ row นี้ (รวม __by/__at metadata และ field.key="" ที่ค้างอยู่)
+        // ล้างข้อมูลทั้งหมดของ row นี้ (รวม __by/__at metadata และ image data)
         dataSheet.getRange(i + 1, 7).setValue("{}");
+        dataSheet.getRange(i + 1, 9).setValue("");
         writeAuditLog(adminEmail, "CLEAR_DATA", `${targetSectionId}:${targetYear}`, `ALL fields wiped`);
         return { success: true };
       }
@@ -1227,7 +1258,11 @@ function getSectionDataByYear(sectionId, year) {
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][3]) === String(sectionId) && String(data[i][2]) === String(year)) {
         let dataObj = {};
-        try { dataObj = JSON.parse(data[i][6] || "{}"); } catch(e) {}
+        try {
+          const textObj  = JSON.parse(data[i][6] || "{}");
+          const imageObj = data[i][8] ? JSON.parse(data[i][8]) : {};
+          dataObj = { ...textObj, ...imageObj };
+        } catch(e) {}
         return {
           success: true,
           data: dataObj,
