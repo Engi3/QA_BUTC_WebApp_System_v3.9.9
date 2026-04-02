@@ -416,7 +416,7 @@ function renderTableField(field) {
     td.rows.forEach(function(row, ri) {
       var isTotal = row.isTotal;
       var rowClass = isTotal ? "tbl-row-total" : "";
-      tbody += '<tr class="'+rowClass+'">';
+      tbody += '<tr class="'+rowClass+'" data-row="'+ri+'">';
       tbody += '<td class="tbl-row-header">'+escHtml(row.label||"แถว "+(ri+1))+'</td>';
       td.cols.forEach(function(col, ci) {
         var ckey = fkey+"_r"+ri+"_c"+ci;
