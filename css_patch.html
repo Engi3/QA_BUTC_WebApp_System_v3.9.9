@@ -501,6 +501,20 @@ div[id$="-picker-modal"] > div {
 .qa-form-divider::before, .qa-form-divider::after { content: ""; flex: 1; border-top: 2px solid var(--glass-border); }
 .qa-form-divider-label { font-size: .78rem; font-weight: 700; color: var(--txt-3); white-space: nowrap; padding: 0 8px; }
 
+/* ── Collapsible divider ───────────────────────────────────── */
+.qa-divider-collapsible {
+  display: flex; align-items: center; gap: 8px;
+  margin: 20px 0 4px; padding: 7px 12px;
+  border-radius: var(--r-sm); cursor: pointer; user-select: none;
+  background: var(--surface-2); border: 1.5px solid var(--glass-border);
+  transition: background .15s, border-color .15s;
+}
+.qa-divider-collapsible:hover { background: var(--primary-ul); border-color: var(--primary); }
+.qa-divider-collapsible .qa-divider-arrow { font-size: .8rem; color: var(--primary); transition: transform .2s; flex-shrink: 0; }
+.qa-divider-collapsible .qa-form-divider-label { padding: 0; flex: 1; }
+.qa-divider-body { transition: none; }
+.qa-divider-body.collapsed { display: none; }
+
 /* ── btn-xs ─────────────────────────────────────────────────── */
 .btn-xs { padding: 3px 8px !important; font-size: .72rem !important; min-height: 0 !important; }
 

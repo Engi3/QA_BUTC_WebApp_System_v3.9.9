@@ -552,9 +552,39 @@ function _fieldAuditTag(key, dataObj) {
 function renderFieldsRO(fields, dataObj) {
   if(!fields.length) return '<p style="color:var(--txt-muted);">ไม่มีฟิลด์</p>';
   var html="";
-  for(var i=0;i<fields.length;i++){
-    var f=fields[i], v=dataObj[f.key]!==undefined?dataObj[f.key]:"-";
+  var i=0;
+  while(i<fields.length){
+    var f=fields[i];
+    // ── Divider (collapsible) ──────────────────────────────────
+    if(f.type==="divider"){
+      var dLbl2 = f.label || f.placeholder || "";
+      if(f.collapsible){
+        var roUid = "dro_"+(f.key||("i"+i))+"_"+i;
+        html+='<div class="qa-divider-collapsible" onclick="_toggleDivider(\''+roUid+'\',this)">'
+          +'<i class="bi bi-chevron-down qa-divider-arrow"></i>'
+          +'<span class="qa-form-divider-label">'+escHtml(dLbl2||"ส่วน")+'</span>'
+          +'</div>'
+          +'<div id="'+roUid+'" class="qa-divider-body">';
+        i++;
+        while(i<fields.length && fields[i].type!=="divider"){
+          html+=_renderOneFieldRO(fields[i],dataObj); i++;
+        }
+        html+='</div>';
+      } else {
+        html+=(dLbl2?'<div class="qa-form-divider"><span class="qa-form-divider-label">'+escHtml(dLbl2)+'</span></div>':'<div class="qa-form-divider"></div>');
+        i++;
+      }
+      continue;
+    }
+    html+=_renderOneFieldRO(f,dataObj); i++;
+  }
+  return html;
+}
+
+function _renderOneFieldRO(f, dataObj) {
+    var v=dataObj[f.key]!==undefined?dataObj[f.key]:"-";
     var audit=_fieldAuditTag(f.key,dataObj);
+    var html="";
 
     if(f.type === "image"){
       var imgHtml = "";
@@ -564,30 +594,29 @@ function renderFieldsRO(fields, dataObj) {
         imgHtml = '<div class="qa-readonly-val">ไม่มีรูปภาพ</div>';
       }
       html += '<div class="mb-3"><div class="qa-label">' + nlToBr(f.label) + '</div>' + imgHtml + audit + '</div>';
-      continue;
+      return html;
     }
-
     if(f.type==="table"){
       if (f.tableDef && f.tableDef.cols && f.tableDef.cols.length) {
         html += _renderEnhancedTableRO(f, dataObj);
       } else {
         html+=_renderTableRO(f.label,f.key,f.columns||"",dataObj);
       }
-      continue;
+      return html;
     }
     if(f.type==="checkbox"){
-      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-val">'+((v==="Y"||v===true)?"✅ ใช่":"❌ ไม่ใช่")+'</div>'+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-val">'+((v==="Y"||v===true)?"✅ ใช่":"❌ ไม่ใช่")+'</div>'+audit+'</div>'; return html;
     }
     if(f.type==="link"){
       var url=escHtml(String(v)), isUrl=v&&v!=="-"&&(String(v).indexOf("http://")===0||String(v).indexOf("https://")===0);
-      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+(isUrl?'<a href="'+url+'" target="_blank" class="qa-readonly-link"><i class="bi bi-box-arrow-up-right me-2"></i>'+url+'</a>':'<div class="qa-readonly-val">'+nlToBr(String(v))+'</div>')+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+(isUrl?'<a href="'+url+'" target="_blank" class="qa-readonly-link"><i class="bi bi-box-arrow-up-right me-2"></i>'+url+'</a>':'<div class="qa-readonly-val">'+nlToBr(String(v))+'</div>')+audit+'</div>'; return html;
     }
     if(f.type==="money"){
-      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-money">'+_formatMoneyRO(v)+'</div>'+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-money">'+_formatMoneyRO(v)+'</div>'+audit+'</div>'; return html;
     }
     if(f.type==="toggle"){
       var isOn=v==="ON"||v==="Y"||v===true||v==="true";
-      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><span class="'+(isOn?"qa-readonly-toggle-on":"qa-readonly-toggle-off")+'">'+(isOn?"✅ เปิด":"❌ ปิด")+'</span>'+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><span class="'+(isOn?"qa-readonly-toggle-on":"qa-readonly-toggle-off")+'">'+(isOn?"✅ เปิด":"❌ ปิด")+'</span>'+audit+'</div>'; return html;
     }
     if(f.type==="toggle-group"){
       var tgItems = f.items && f.items.length ? f.items : [];
@@ -595,7 +624,7 @@ function renderFieldsRO(fields, dataObj) {
         var isOn2 = dataObj[f.key+"_tog"+ii] === "ON";
         return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;"><span style="font-size:1rem;">'+(isOn2?"✅":"⬜")+'</span><span style="font-size:.9rem;">'+escHtml(lb)+'</span></div>';
       }).join("");
-      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+(tgRows||'<div class="qa-readonly-val">-</div>')+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+(tgRows||'<div class="qa-readonly-val">-</div>')+audit+'</div>'; return html;
     }
     if(f.type==="checkbox-group"){
       var cbItems = f.items && f.items.length ? f.items : [];
@@ -604,7 +633,7 @@ function renderFieldsRO(fields, dataObj) {
         var isChk = chkVal && chkVal !== "";
         return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;"><span style="font-size:1rem;">'+(isChk?"☑":"☐")+'</span><span style="font-size:.9rem;">'+escHtml(lb)+'</span></div>';
       }).join("");
-      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+(cbRows||'<div class="qa-readonly-val">-</div>')+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+(cbRows||'<div class="qa-readonly-val">-</div>')+audit+'</div>'; return html;
     }
     if(f.type==="choice-grid"){
       var cgRows = f.gridRows || [];
@@ -619,7 +648,7 @@ function renderFieldsRO(fields, dataObj) {
         return '<tr>'+cells+'</tr>';
       }).join("");
       var cgTable = cgRows.length ? '<div class="table-responsive"><table class="qa-grid-table" style="font-size:.85rem;"><thead><tr>'+cgHds+'</tr></thead><tbody>'+cgBdy+'</tbody></table></div>' : '<div class="qa-readonly-val">-</div>';
-      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+cgTable+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+cgTable+audit+'</div>'; return html;
     }
     if(f.type==="tick-grid"){
       var tkRows = f.gridRows || [];
@@ -634,11 +663,10 @@ function renderFieldsRO(fields, dataObj) {
         return '<tr>'+cells+'</tr>';
       }).join("");
       var tkTable = tkRows.length ? '<div class="table-responsive"><table class="qa-grid-table" style="font-size:.85rem;"><thead><tr>'+tkHds+'</tr></thead><tbody>'+tkBdy+'</tbody></table></div>' : '<div class="qa-readonly-val">-</div>';
-      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+tkTable+audit+'</div>'; continue;
+      html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div>'+tkTable+audit+'</div>'; return html;
     }
     html+='<div class="mb-3"><div class="qa-label">'+nlToBr(f.label)+'</div><div class="qa-readonly-val">'+nlToBr(String(v))+'</div>'+audit+'</div>';
-  }
-  return html;
+    return html;
 }
 
 // ── ดึงฟอร์มที่มีฟิลด์อย่างน้อย 1 ตัวที่มองเห็นได้จาก Section นี้ ──

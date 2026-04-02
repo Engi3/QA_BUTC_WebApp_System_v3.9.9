@@ -363,7 +363,39 @@ function buildFormCard(form, section, effectiveSecId, effectiveSecName) {
 
 function renderFormFields(fields) {
   if (!fields || !fields.length) return '<p style="color:var(--txt-muted);font-size:.84rem;">ไม่มีฟิลด์</p>';
-  return fields.map(function(f) { return renderOneField(f); }).join("");
+  var html = "";
+  var i = 0;
+  while (i < fields.length) {
+    var f = fields[i];
+    if (f.type === "divider" && f.collapsible) {
+      var uid = "dcol_" + (f.key || ("i" + i)) + "_" + i;
+      var dLbl = f.label || f.placeholder || "ส่วน";
+      html += '<div class="qa-divider-collapsible" onclick="_toggleDivider(\'' + uid + '\',this)">'
+        + '<i class="bi bi-chevron-down qa-divider-arrow"></i>'
+        + '<span class="qa-form-divider-label">' + escHtml(dLbl) + '</span>'
+        + '</div>'
+        + '<div id="' + uid + '" class="qa-divider-body">';
+      i++;
+      while (i < fields.length && fields[i].type !== "divider") {
+        html += renderOneField(fields[i]);
+        i++;
+      }
+      html += '</div>';
+    } else {
+      html += renderOneField(f);
+      i++;
+    }
+  }
+  return html;
+}
+
+function _toggleDivider(uid, headerEl) {
+  var body = document.getElementById(uid);
+  if (!body) return;
+  var arrow = headerEl ? headerEl.querySelector(".qa-divider-arrow") : null;
+  var isOpen = !body.classList.contains("collapsed");
+  body.classList.toggle("collapsed", isOpen);
+  if (arrow) arrow.style.transform = isOpen ? "rotate(-90deg)" : "";
 }
 
 function renderOneField(field) {

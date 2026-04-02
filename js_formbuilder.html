@@ -21,7 +21,7 @@ function _fbLoadForm(formId) {
     return { id:_fbId(), key:f.key||"", type:f.type||"text", label:f.label||"", required:!!f.required,
       desc:f.desc||"", placeholder:f.placeholder||"", options:f.options||"",
       columns:f.columns||"", sectionIds:f.sectionIds||[], items:f.items||[],
-      allowCustom:!!f.allowCustom, imageData:f.imageData||"", tableDef:f.tableDef||null,
+      allowCustom:!!f.allowCustom, collapsible:!!f.collapsible, imageData:f.imageData||"", tableDef:f.tableDef||null,
       scaleMin:f.scaleMin||0, scaleMax:f.scaleMax||5, labelMin:f.labelMin||"", labelMax:f.labelMax||"",
       gridRows:f.gridRows||["แถวที่ 1"], gridCols:f.gridCols||["คอลัมน์ 1", "คอลัมน์ 2"]
     };
@@ -35,7 +35,7 @@ function _fbLoadForm(formId) {
 
 function fbAddField() {
   _fbFields.push({ id:_fbId(), key:"fld_"+Date.now()+Math.random().toString(36).slice(2,5), type:"text", label:"", required:false, desc:"",
-    placeholder:"", options:"", columns:"", sectionIds:[], items:[], allowCustom:false, imageData:"", tableDef:null,
+    placeholder:"", options:"", columns:"", sectionIds:[], items:[], allowCustom:false, collapsible:false, imageData:"", tableDef:null,
     scaleMin:0, scaleMax:5, labelMin:"", labelMax:"", gridRows:["แถวที่ 1"], gridCols:["คอลัมน์ 1", "คอลัมน์ 2"] });
   _fbRenderAll(); 
   _fbUpdatePreview();
@@ -199,7 +199,13 @@ function _buildFieldItemHTML(f, fi) {
 function _fbExtraHTML(f) {
   var inp = function(ph){ return '<div class="fb-row"><div class="fb-col-1"><span class="fb-mini-label">คำใบ้ (Placeholder)</span>'
     +'<input type="text" class="qa-input fb-extra-input" value="'+escHtml(f.placeholder||"")+'" placeholder="'+ph+'" oninput="_fbSyncOne(\''+f.id+'\');_fbUpdatePreview();"></div></div>'; };
-  if (f.type==="table"||f.type==="select"||f.type==="radio"||f.type.includes("grid")||f.type==="linear-scale") return ""; 
+  if (f.type==="divider") {
+    return '<div class="fb-row"><div style="flex:1;"><label class="qa-check-item" style="font-size:.82rem;gap:6px;">'
+      +'<input type="checkbox" class="fb-collapsible-chk"'+(f.collapsible?" checked":"")
+      +' onchange="_fbSyncOne(\''+f.id+'\');_fbUpdatePreview();">'
+      +'<span>พับเก็บได้ — ฟิลด์ใต้ส่วนคั่นนี้สามารถพับ/ขยายได้</span></label></div></div>';
+  }
+  if (f.type==="table"||f.type==="select"||f.type==="radio"||f.type.includes("grid")||f.type==="linear-scale") return "";
   if (f.type==="link")   return inp("https://...");
   if (f.type==="text"||f.type==="number"||f.type==="money") return inp("เช่น กรุณากรอกข้อมูล...");
   return "";
@@ -331,6 +337,7 @@ function _fbSyncOne(fid) {
   var dsc=item.querySelector(".fb-desc-input"); if(dsc)f.desc=dsc.value;
   var ext=item.querySelector(".fb-extra-input"); if(ext)f.placeholder=ext.value;
   var acm=item.querySelector(".fb-allow-custom-chk"); if(acm)f.allowCustom=acm.checked;
+  var col=item.querySelector(".fb-collapsible-chk"); if(col)f.collapsible=col.checked;
   
   var sc=item.querySelectorAll(".fb-sec-chk:checked");
   f.sectionIds=Array.prototype.slice.call(sc).map(function(e){return e.value;});
@@ -406,9 +413,13 @@ function _fbUpdatePreview() {
     try {
       if(!f.label&&f.type!=="image"&&f.type!=="divider")return;
       html+='<div class="qa-glass-card p-3" style="margin-bottom:0;border:1.5px solid var(--border);">'; 
-      if(f.type==="divider"){ 
-        html+=(f.label?'<div style="display:flex;align-items:center;gap:10px;margin:4px 0;"><hr style="flex:1;border:none;border-top:2px solid var(--glass-border);margin:0;"><span style="font-size:.78rem;font-weight:700;color:var(--txt-3);">'+nlToBr(f.label)+'</span><hr style="flex:1;border:none;border-top:2px solid var(--glass-border);margin:0;"></div>':'<hr style="border:none;border-top:2px dashed var(--glass-border);">'); 
-        html+='</div>'; return; 
+      if(f.type==="divider"){
+        var divHd = f.label ? '<span style="font-size:.78rem;font-weight:700;color:var(--txt-3);">'+nlToBr(f.label)+'</span>' : '';
+        var colBadge = f.collapsible ? '<span style="font-size:.68rem;background:var(--primary-ul);color:var(--primary);border-radius:10px;padding:1px 7px;margin-left:6px;font-weight:700;">พับเก็บได้</span>' : '';
+        html+=(f.label
+          ?'<div style="display:flex;align-items:center;gap:10px;margin:4px 0;"><hr style="flex:1;border:none;border-top:2px solid var(--glass-border);margin:0;">'+divHd+colBadge+'<hr style="flex:1;border:none;border-top:2px solid var(--glass-border);margin:0;"></div>'
+          :'<hr style="border:none;border-top:2px dashed var(--glass-border);">');
+        html+='</div>'; return;
       }
       html+='<div style="font-size:.75rem;font-weight:700;color:var(--txt-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;white-space:pre-wrap;">'+nlToBr(f.label||"(ไม่มีชื่อ)")+(f.required?'<span style="color:var(--danger);"> *</span>':"")+' </div>';
       if(f.desc)html+='<div style="font-size:.74rem;color:var(--info);margin-bottom:8px;white-space:pre-wrap;"><i class="bi bi-info-circle me-1"></i>'+nlToBr(f.desc)+'</div>';

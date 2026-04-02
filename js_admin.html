@@ -647,7 +647,25 @@ function executeDelete() {
         reset();
         showToast(err.message || err, "danger");
       })
-      .renameReportForm(id, name); // id = fileId, name = ชื่อใหม่
+      .renameReportForm(id, name);
+
+  // ── Doc Tracking delete ────────────────────────────────────
+  } else if (type === "dt-group") {
+    _dtInit();
+    var dtGi = parseInt(id, 10);
+    if (!isNaN(dtGi)) { _dtData.groups.splice(dtGi, 1); _dtRender(); showToast('ลบหัวข้อใหญ่ "'+name+'" สำเร็จ', "success"); }
+    reset();
+  } else if (type === "dt-item") {
+    _dtInit();
+    var dtIP = id.split(":"), dtGiI = parseInt(dtIP[0],10), dtIiI = parseInt(dtIP[1],10);
+    if (_dtData.groups[dtGiI] && _dtData.groups[dtGiI].items) { _dtData.groups[dtGiI].items.splice(dtIiI, 1); _dtRender(); showToast('ลบหัวข้อย่อย "'+name+'" สำเร็จ', "success"); }
+    reset();
+  } else if (type === "dt-status") {
+    _dtInit();
+    var dtSP = id.split(":"), dtGiS = parseInt(dtSP[0],10), dtIiS = parseInt(dtSP[1],10), dtSiS = parseInt(dtSP[2],10);
+    var dtItm = (_dtData.groups[dtGiS]||{}).items && _dtData.groups[dtGiS].items[dtIiS];
+    if (dtItm && dtItm.statuses) { dtItm.statuses.splice(dtSiS, 1); _dtRender(); showToast('ลบสถานะ "'+name+'" สำเร็จ', "success"); }
+    reset();
   }
 }
 
@@ -1260,6 +1278,7 @@ function duplicateForm(formId) {
       sectionIds:  (f.sectionIds || []).slice(),
       items:       JSON.parse(JSON.stringify(f.items || [])),
       allowCustom: !!f.allowCustom,
+      collapsible: !!f.collapsible,
       imageData:   f.imageData   || "",
       tableDef:    f.tableDef    ? JSON.parse(JSON.stringify(f.tableDef)) : null,
       scaleMin:    f.scaleMin    !== undefined ? f.scaleMin : 0,
@@ -1768,8 +1787,8 @@ function _dtAddGroup() {
 }
 function _dtDeleteGroup(gi) {
   _dtInit();
-  _dtData.groups.splice(gi, 1);
-  _dtRender();
+  var name = (_dtData.groups[gi] && _dtData.groups[gi].title) || "(ไม่มีชื่อ)";
+  openDeleteConfirm("dt-group", String(gi), name);
 }
 function _dtAddItem(gi) {
   _dtInit();
@@ -1780,8 +1799,9 @@ function _dtAddItem(gi) {
 }
 function _dtDeleteItem(gi, ii) {
   _dtInit();
-  if (_dtData.groups[gi] && _dtData.groups[gi].items) _dtData.groups[gi].items.splice(ii, 1);
-  _dtRender();
+  var item = (_dtData.groups[gi] && _dtData.groups[gi].items && _dtData.groups[gi].items[ii]);
+  var name = (item && item.title) || "(ไม่มีชื่อ)";
+  openDeleteConfirm("dt-item", gi + ":" + ii, name);
 }
 function _dtAddStatus(gi, ii) {
   _dtInit();
@@ -1794,8 +1814,8 @@ function _dtAddStatus(gi, ii) {
 function _dtDeleteStatus(gi, ii, si) {
   _dtInit();
   var item = (_dtData.groups[gi]||{}).items && _dtData.groups[gi].items[ii];
-  if (item && item.statuses) item.statuses.splice(si, 1);
-  _dtRender();
+  var name = (item && item.statuses && item.statuses[si] && item.statuses[si].label) || "(ไม่มีชื่อ)";
+  openDeleteConfirm("dt-status", gi + ":" + ii + ":" + si, name);
 }
 function _dtSave() {
   _dtInit();
