@@ -770,7 +770,8 @@ function renderReportFormAdminSection() {
   orderedFileIds.forEach(function(fid) {
     var f = fileMap[fid];
     if (!f) return;
-    var ext      = f.fileName ? f.fileName.split(".").pop().toUpperCase() : "DOC";
+    var ext      = f.fileName ? f.fileName.split(".").pop().toUpperCase() : "FILE";
+    var _ico     = (typeof _getFileIcon === "function") ? _getFileIcon(ext) : { icon: "bi-file-earmark-word-fill", color: "#2563eb", bg: "rgba(37,99,235,.12)" };
     var curGroup = groupOfFile[fid] !== undefined ? groupOfFile[fid] : "";
     var groupArr = order[curGroup] || [];
     var posInGroup = groupArr.indexOf(fid);
@@ -786,7 +787,7 @@ function renderReportFormAdminSection() {
     rows += '<tr>'
       + '<td>'
           + '<div style="display:flex;align-items:center;gap:10px;">'
-            + '<i class="bi bi-file-earmark-word-fill" style="font-size:1.4rem;color:#2563eb;flex-shrink:0;"></i>'
+            + '<i class="bi ' + _ico.icon + '" style="font-size:1.4rem;color:' + _ico.color + ';flex-shrink:0;"></i>'
             + '<div>'
               + '<div style="font-weight:700;font-size:.88rem;">' + escHtml(f.docName) + '</div>'
               + '<div style="font-size:.75rem;color:var(--txt-muted);">' + escHtml(f.fileName) + '</div>'
@@ -794,7 +795,7 @@ function renderReportFormAdminSection() {
           + '</div>'
       + '</td>'
       + '<td style="text-align:center;">'
-          + '<span style="background:rgba(37,99,235,.1);color:#2563eb;font-size:.73rem;font-weight:700;padding:3px 10px;border-radius:20px;">' + escHtml(ext) + '</span>'
+          + '<span style="background:' + _ico.bg + ';color:' + _ico.color + ';font-size:.73rem;font-weight:700;padding:3px 10px;border-radius:20px;">' + escHtml(ext) + '</span>'
       + '</td>'
       // Dropdown เลือกกลุ่ม
       + '<td style="min-width:160px;">'

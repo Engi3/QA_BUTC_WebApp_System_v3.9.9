@@ -1043,12 +1043,9 @@ function clearSectionData(adminEmail, adminPassword, targetYear, targetSectionId
     const data      = dataSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][2]) === String(targetYear) && data[i][3] === targetSectionId) {
-        let existingData = {};
-        try { existingData = JSON.parse(data[i][6] || "{}"); } catch(e) {}
-        const fieldsToClear = JSON.parse(fieldsToClearJson);
-        fieldsToClear.forEach(f => delete existingData[f]);
-        dataSheet.getRange(i + 1, 7).setValue(JSON.stringify(existingData));
-        writeAuditLog(adminEmail, "CLEAR_DATA", `${targetSectionId}:${targetYear}`, `Fields: ${fieldsToClearJson}`);
+        // ล้างข้อมูลทั้งหมดของ row นี้ (รวม __by/__at metadata และ field.key="" ที่ค้างอยู่)
+        dataSheet.getRange(i + 1, 7).setValue("{}");
+        writeAuditLog(adminEmail, "CLEAR_DATA", `${targetSectionId}:${targetYear}`, `ALL fields wiped`);
         return { success: true };
       }
     }

@@ -89,17 +89,25 @@ function loginWithGoogle() {
         return;
       }
       
-      // ✅ ดึง URL จาก Backend และตั้งค่า target="_top" เพื่อให้ลิงก์เปิดทับหน้าเว็บอย่างถูกต้อง
+      // URL หลักของระบบ (GitHub Pages — ลิงก์คงที่ไม่เปลี่ยนตาม GAS Version)
+      var MAIN_SITE_URL = "https://qaadmin-butc.github.io/QA_BUTC_System/";
+      // AccountChooser ต้องใช้ GAS URL เป็น continue (Google ไม่ยอมรับ non-Google URL)
+      // หลัง login สำเร็จ GAS จะ redirect ไป GitHub Pages เอง
       var switchAccountUrl = res.switchUrl || res.url || "https://accounts.google.com/AccountChooser";
       var switchBtnHtml = '<a href="' + switchAccountUrl + '" target="_top" class="qa-btn-ghost w-100 mt-2" style="justify-content:center; border-color:var(--border-2);"><i class="bi bi-arrow-left-right me-2 text-primary-c"></i>เปลี่ยนบัญชี Google ใหม่</a>';
-      
+
       if (res.status === "success") {
         APP.user = res; saveSession(); updateNavbar(); startIdleTimer(); startSilentProfileRefresh();
         showToast("ยินดีต้อนรับ " + res.fullName, "success");
+        // ถ้าเข้า GAS URL ตรงๆ (ไม่ผ่าน iframe ของ GitHub Pages) → redirect ไปที่ลิงก์หลัก
+        if (window === window.top) {
+          setTimeout(function() { window.top.location.replace(MAIN_SITE_URL); }, 800);
+          return;
+        }
         if (res.role === "admin") goToAdminDashboard();
         else if (res.role === "manager") goToManagerDashboard();
         else goToUserForm();
-        
+
         setTimeout(function(){
           refreshAllData(function(){
             if(res.role === "admin") { renderAdminDashboard(); renderSectionList(); renderFormList(); loadAllUsers(); }
