@@ -560,6 +560,69 @@ function deleteForm(formId) {
 // ─────────────────────────────────────────
 // 5. DATA SUBMISSION (CRUD)
 // ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// Dynamic Chunking Helpers (tb_data)
+//
+// โครงสร้าง column ของ tb_data:
+//   A(1): timestamp_created  B(2): userEmail   C(3): year
+//   D(4): sectionId          E(5): sectionName  F(6): lastUpdate
+//   G(7): data_chunk_1       H(8): userName
+//   I(9): data_chunk_2  J(10): data_chunk_3  ... (ขยายไปเรื่อยๆ)
+//
+// JSON ข้อมูลทั้งหมด (รวมรูปภาพ base64) จะถูกแบ่งเป็น chunks
+// ขนาดไม่เกิน CHUNK_SIZE ตัวอักษรต่อ chunk และจัดเก็บต่อกัน
+// _readChunkedData รวม chunks กลับเป็น string แล้ว JSON.parse
+// ═══════════════════════════════════════════════════════════════
+
+const DATA_CHUNK_SIZE = 45000;   // ตัวอักษรต่อ chunk (< 50,000 limit ของ Sheets)
+const DATA_MAX_CHUNKS = 20;      // รองรับสูงสุด 20 chunks = ~900KB JSON
+const DATA_COL_CHUNK1 = 7;       // column index (1-based) ของ chunk แรก = col G
+const DATA_COL_UNAME  = 8;       // column index ของ userName = col H
+const DATA_COL_OVERFLOW = 9;     // column index เริ่มต้นของ overflow chunks = col I
+
+/**
+ * อ่าน chunks จาก row array แล้วคืน Object
+ * รองรับทั้งข้อมูลเก่า (ไม่มี chunk) และใหม่ (multi-chunk)
+ */
+function _readChunkedData(rowArr) {
+  // chunk แรกอยู่ที่ index 6 (col G, 0-based)
+  let fullJson = String(rowArr[DATA_COL_CHUNK1 - 1] || "{}");
+  // overflow chunks อยู่ที่ index 8+ (col I+, 0-based)
+  for (let c = DATA_COL_OVERFLOW - 1; c < rowArr.length; c++) {
+    if (!rowArr[c]) break;
+    fullJson += String(rowArr[c]);
+  }
+  try { return JSON.parse(fullJson); } catch(e) { return {}; }
+}
+
+/**
+ * บันทึก mergedData ลง sheet row ด้วย dynamic chunking
+ * chunk แรกเขียนที่ col G (DATA_COL_CHUNK1)
+ * overflow เขียนที่ col I+ (DATA_COL_OVERFLOW+)
+ * คืน error message string ถ้าข้อมูลใหญ่เกิน limit, null ถ้าสำเร็จ
+ */
+function _writeChunkedData(sheet, rowNum, mergedData) {
+  const fullJson = JSON.stringify(mergedData);
+  if (fullJson.length > DATA_CHUNK_SIZE * DATA_MAX_CHUNKS) {
+    return `ข้อมูลมีขนาดใหญ่เกินไป (${Math.round(fullJson.length / 1024)} KB / สูงสุด ${Math.round(DATA_CHUNK_SIZE * DATA_MAX_CHUNKS / 1024)} KB) กรุณาลดขนาดรูปภาพหรือจำนวนข้อมูลในตาราง`;
+  }
+  // แบ่ง chunks
+  const chunks = [];
+  for (let i = 0; i < fullJson.length; i += DATA_CHUNK_SIZE) {
+    chunks.push(fullJson.substring(i, i + DATA_CHUNK_SIZE));
+  }
+  // เขียน chunk แรกที่ col G
+  sheet.getRange(rowNum, DATA_COL_CHUNK1).setValue(chunks[0] || "{}");
+  // เขียน overflow chunks ที่ col I+ (clear ทุก slot ที่ไม่ใช้ด้วย setValues ครั้งเดียว)
+  const overflowSlots = DATA_MAX_CHUNKS - 1;
+  const overflowRow = [];
+  for (let c = 0; c < overflowSlots; c++) {
+    overflowRow.push(c + 1 < chunks.length ? chunks[c + 1] : "");
+  }
+  sheet.getRange(rowNum, DATA_COL_OVERFLOW, 1, overflowSlots).setValues([overflowRow]);
+  return null; // success
+}
+
 function saveFormData(sectionId, sectionName, year, formDataObj, userEmail, userName) {
   try {
     const sheet     = ensureSheetExists("tb_data");
@@ -571,43 +634,30 @@ function saveFormData(sectionId, sectionName, year, formDataObj, userEmail, user
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][2]) === String(year) && data[i][3] === sectionId) {
         rowToUpdate = i + 1;
-        try { existingData = JSON.parse(data[i][6] || "{}"); } catch(e) {}
+        existingData = _readChunkedData(data[i]);
         break;
       }
     }
 
-    // Merge ข้อมูลเก่ากับใหม่
     const mergedData = { ...existingData, ...formDataObj };
-
-    // ── แยกเก็บ image data (base64) ไปยัง column 9 (col I) เพื่อหลีกเลี่ยง cell size limit ──
-    const imageData  = {};
-    const textData   = {};
-    Object.keys(mergedData).forEach(function(k) {
-      if (mergedData[k] && String(mergedData[k]).indexOf("data:image") === 0) {
-        imageData[k] = mergedData[k];
-      } else {
-        textData[k] = mergedData[k];
-      }
-    });
-    const dataJson      = JSON.stringify(textData);
-    const imageDataJson = Object.keys(imageData).length > 0 ? JSON.stringify(imageData) : "";
-
-    if (dataJson.length > 49000) {
-      return { success: false, message: "ข้อมูลข้อความมีขนาดใหญ่เกินไป (" + dataJson.length + " ตัวอักษร) กรุณาลดจำนวนข้อมูลในตาราง" };
-    }
 
     if (rowToUpdate > 0) {
       sheet.getRange(rowToUpdate, 2).setValue(userEmail);
       sheet.getRange(rowToUpdate, 6).setValue(timestamp);
-      sheet.getRange(rowToUpdate, 7).setValue(dataJson);
-      sheet.getRange(rowToUpdate, 8).setValue(userName);
-      sheet.getRange(rowToUpdate, 9).setValue(imageDataJson);
+      sheet.getRange(rowToUpdate, DATA_COL_UNAME).setValue(userName);
+      const err = _writeChunkedData(sheet, rowToUpdate, mergedData);
+      if (err) return { success: false, message: err };
     } else {
+      // สร้าง row ใหม่: เขียน metadata ก่อน แล้วค่อย write chunks แยก
+      // เพราะ appendRow ไม่รองรับ dynamic overflow ได้ดีเท่า
       sheet.appendRow([
         timestamp, userEmail, year,
         sectionId, sectionName,
-        timestamp, dataJson, userName, imageDataJson
+        timestamp, "{}", userName
       ]);
+      const newRowNum = sheet.getLastRow();
+      const err = _writeChunkedData(sheet, newRowNum, mergedData);
+      if (err) return { success: false, message: err };
     }
 
     writeAuditLog(userEmail, "SAVE_DATA", `${sectionId}:${year}`, userName);
@@ -627,27 +677,23 @@ function fetchDashboardData() {
       const lUpdate = data[i][5] instanceof Date
         ? data[i][5].toISOString()
         : data[i][5];
-      // ── Merge text data (col 7) + image data (col 9) กลับเป็น dataJson เดียว ──
-      let mergedJson = data[i][6] || "{}";
-      if (data[i][8]) {
-        try {
-          const textObj  = JSON.parse(data[i][6] || "{}");
-          const imageObj = JSON.parse(data[i][8] || "{}");
-          mergedJson = JSON.stringify({ ...textObj, ...imageObj });
-        } catch(e) {}
+      // ── รวม chunks กลับเป็น JSON string ──
+      let fullJson = String(data[i][DATA_COL_CHUNK1 - 1] || "{}");
+      for (let c = DATA_COL_OVERFLOW - 1; c < data[i].length; c++) {
+        if (!data[i][c]) break;
+        fullJson += String(data[i][c]);
       }
       summary.push({
         year:          data[i][2],
         sectionId:     data[i][3],
         sectionName:   data[i][4],
         lastUpdate:    lUpdate,
-        submitterName: data[i][7] || data[i][1],
-        dataJson:      mergedJson
+        submitterName: data[i][DATA_COL_UNAME - 1] || data[i][1],
+        dataJson:      fullJson
       });
     }
     return { success: true, data: summary };
   } catch(e) {
-    // [Patch 2]: บันทึก Error ลงระบบเบื้องหลัง
     console.error("🔥 ERROR in fetchDashboardData: " + e.stack);
     return { success: false, data: [], message: e.toString() };
   }
@@ -659,16 +705,10 @@ function fetchSectionData(sectionId, year) {
     const data  = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][2]) === String(year) && data[i][3] === sectionId) {
-        let parsed = {};
-        try {
-          const textObj  = JSON.parse(data[i][6] || "{}");
-          const imageObj = data[i][8] ? JSON.parse(data[i][8]) : {};
-          parsed = { ...textObj, ...imageObj };
-        } catch(e) {}
         return {
           success:       true,
-          data:          parsed,
-          submitterName: data[i][7],
+          data:          _readChunkedData(data[i]),
+          submitterName: data[i][DATA_COL_UNAME - 1],
           lastUpdate:    data[i][5]
         };
       }
@@ -1073,9 +1113,10 @@ function clearSectionData(adminEmail, adminPassword, targetYear, targetSectionId
     const data      = dataSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][2]) === String(targetYear) && data[i][3] === targetSectionId) {
-        // ล้างข้อมูลทั้งหมดของ row นี้ (รวม __by/__at metadata และ image data)
-        dataSheet.getRange(i + 1, 7).setValue("{}");
-        dataSheet.getRange(i + 1, 9).setValue("");
+        // ล้างข้อมูลทั้งหมด: chunk แรก + overflow chunks ทั้งหมด (dynamic)
+        dataSheet.getRange(i + 1, DATA_COL_CHUNK1).setValue("{}");
+        const clearRow = new Array(DATA_MAX_CHUNKS - 1).fill("");
+        dataSheet.getRange(i + 1, DATA_COL_OVERFLOW, 1, DATA_MAX_CHUNKS - 1).setValues([clearRow]);
         writeAuditLog(adminEmail, "CLEAR_DATA", `${targetSectionId}:${targetYear}`, `ALL fields wiped`);
         return { success: true };
       }
@@ -1257,17 +1298,11 @@ function getSectionDataByYear(sectionId, year) {
     const data = sh.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][3]) === String(sectionId) && String(data[i][2]) === String(year)) {
-        let dataObj = {};
-        try {
-          const textObj  = JSON.parse(data[i][6] || "{}");
-          const imageObj = data[i][8] ? JSON.parse(data[i][8]) : {};
-          dataObj = { ...textObj, ...imageObj };
-        } catch(e) {}
         return {
-          success: true,
-          data: dataObj,
-          submitterName: data[i][7] || "",
-          lastUpdate: data[i][5] instanceof Date ? data[i][5].toISOString() : String(data[i][5] || "")
+          success:       true,
+          data:          _readChunkedData(data[i]),
+          submitterName: data[i][DATA_COL_UNAME - 1] || "",
+          lastUpdate:    data[i][5] instanceof Date ? data[i][5].toISOString() : String(data[i][5] || "")
         };
       }
     }
