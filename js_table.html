@@ -432,7 +432,18 @@ function renderTableField(field) {
       }
       tbody += '</tr>';
     });
-    html += '<div style="overflow-x:auto;"><table class="qa-data-table qa-enhanced-table"><thead>'+thead+'</thead><tbody>'+tbody+'</tbody></table></div>';
+    // Col total footer สำหรับ fixed rows
+    var tfoot = "";
+    if (showColTotal || showRowTotal) {
+      tfoot += '<tfoot><tr>';
+      tfoot += '<td class="tbl-cell-auto" style="background:var(--primary-ul);font-weight:700;color:var(--primary);">รวม</td>';
+      td.cols.forEach(function(col, ci) {
+        tfoot += '<td class="tbl-cell-auto tbl-col-sum" id="tbl-colsum-'+fkey+'-'+ci+'" style="background:var(--primary-ul);color:var(--primary);font-weight:700;">—</td>';
+      });
+      if (showRowTotal) tfoot += '<td class="tbl-cell-auto" id="tbl-grandtotal-'+fkey+'" style="background:var(--primary-ul);color:var(--primary);font-weight:700;">—</td>';
+      tfoot += '</tr></tfoot>';
+    }
+    html += '<div style="overflow-x:auto;"><table class="qa-data-table qa-enhanced-table" id="tbl-'+fkey+'"><thead>'+thead+'</thead><tbody id="tbl-body-'+fkey+'">'+tbody+'</tbody>'+tfoot+'</table></div>';
 
   } else {
     // Dynamic rows mode
@@ -602,6 +613,10 @@ function onTblInput(fkey) {
 
   rows.forEach(function(tr) {
     var ri = tr.dataset.row !== undefined ? parseInt(tr.dataset.row) : -1;
+    // ข้าม isTotal rows (ไม่มี user inputs — ทุก cell เป็น tbl-cell-auto)
+    var isAutoRow = !tr.querySelector('input[name], select[name], textarea[name]');
+    if (isAutoRow) return;
+
     var rowSum = 0;
     var rowHasNum = false;
 
@@ -624,11 +639,28 @@ function onTblInput(fkey) {
     }
   });
 
-  // Col sums
-  if (showColTotal) {
+  // อัปเดต tbl-sum cells ใน isTotal rows (แถวที่ทุก cell คำนวณอัตโนมัติ)
+  rows.forEach(function(tr) {
+    if (tr.querySelector('input[name], select[name], textarea[name]')) return; // ข้ามแถวปกติ
+    var ri = tr.dataset.row !== undefined ? parseInt(tr.dataset.row) : -1;
+    if (ri < 0) return;
+    td.cols.forEach(function(col, ci) {
+      var cell = document.getElementById("tbl-sum-"+fkey+"-r"+ri+"-c"+ci);
+      if (!cell) return;
+      var isNum = col.type === "number" || col.type === "money" || col.type === "formula" || col.isTotal;
+      cell.innerText = isNum && colSums[ci] !== undefined ? _fmtNum(colSums[ci]) : "—";
+    });
+    if (showRowTotal) {
+      var rsEl = document.getElementById("tbl-rowsum-"+fkey+"-"+ri);
+      if (rsEl) rsEl.innerText = _fmtNum(grandTotal);
+    }
+  });
+
+  // Col sums (อัพเดทถ้ามี tfoot elements อยู่ใน DOM ไม่ว่า showColTotal หรือ showRowTotal)
+  if (showColTotal || showRowTotal) {
     td.cols.forEach(function(col, ci) {
       var csEl = document.getElementById("tbl-colsum-"+fkey+"-"+ci);
-      if (csEl) csEl.innerText = (col.type==="number"||col.type==="formula") && colSums[ci]!==undefined ? _fmtNum(colSums[ci]) : "—";
+      if (csEl) csEl.innerText = (col.type==="number"||col.type==="money"||col.type==="formula") && colSums[ci]!==undefined ? _fmtNum(colSums[ci]) : "—";
     });
     var gtEl = document.getElementById("tbl-grandtotal-"+fkey);
     if (gtEl) gtEl.innerText = _fmtNum(grandTotal);

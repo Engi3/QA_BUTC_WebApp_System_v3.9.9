@@ -358,10 +358,20 @@ function _renderFormProgressGrid(containerId, year) {
     var pct = totalPoints > 0 ? Math.round(completedPoints / totalPoints * 100) : 0;
     var sColor = pct === 100 ? "var(--success)" : (pct > 0 ? "var(--warning)" : "var(--danger)");
     var subInfo = isShared ? '<span style="color:var(--info);font-weight:600;">ฟอร์มส่วนกลาง</span>' : ('เป้าหมาย ' + activeSections.length + ' Section');
-    var viewBtn = (isShared && gRow)
-      ? '<div class="mt-2"><button class="qa-btn-ghost w-100" style="font-size:.78rem;border:1px solid var(--border);" onclick="openViewModal(\''+escHtml("GLOBAL_"+form.formId)+'\',\''+escHtml(form.formName)+'\',\''+year+'\')">'
-        + '<i class="bi bi-search me-1"></i>ดูข้อมูลที่กรอก</button></div>'
-      : "";
+    var viewBtn = "";
+    if (isShared && gRow) {
+      viewBtn = '<div class="mt-2"><button class="qa-btn-ghost w-100" style="font-size:.78rem;border:1px solid var(--border);" onclick="openViewModal(\''+escHtml("GLOBAL_"+form.formId)+'\',\''+escHtml(form.formName)+'\',\''+year+'\')">'
+        + '<i class="bi bi-search me-1"></i>ดูข้อมูลที่กรอก</button></div>';
+    } else if (!isShared) {
+      // Section-specific form: นับกี่ Section ที่ส่งข้อมูลแล้ว
+      var submittedCount = activeSections.filter(function(sec) {
+        return yearData.some(function(d) { return d.sectionId === sec.sectionId; });
+      }).length;
+      if (submittedCount > 0) {
+        viewBtn = '<div class="mt-2"><button class="qa-btn-ghost w-100" style="font-size:.78rem;border:1px solid var(--border);" onclick="openFormViewModal(\''+escHtml(form.formId)+'\',\''+escHtml(form.formName)+'\',\''+year+'\')">'
+          + '<i class="bi bi-search me-1"></i>ดูข้อมูลที่กรอก ('+submittedCount+' Section)</button></div>';
+      }
+    }
 
     html += '<div class="qa-glass-card p-3">'
       + '<div style="font-weight:700;font-size:.9rem;color:var(--txt);margin-bottom:2px;"><i class="bi bi-file-earmark-text me-2" style="color:var(--primary);"></i>' + escHtml(form.formName) + '</div>'
@@ -436,6 +446,58 @@ function openViewModal(secId, secName, year) {
   }
 
   document.getElementById("modal-view-body").innerHTML = secForms.length ? renderFormsRO(secForms, mergedDataObj) : renderRawRO(mergedDataObj);
+  new bootstrap.Modal(document.getElementById("modal-view-data")).show();
+}
+
+// เปิด Modal แสดงข้อมูลของ Section-specific form (แสดงทุก Section ที่กรอกแล้ว)
+function openFormViewModal(formId, formName, year) {
+  var yr = year || (document.getElementById("public-year-select")||{}).value || "";
+  var form = null;
+  for (var i=0; i<(APP.forms||[]).length; i++) { if (APP.forms[i].formId === formId) { form = APP.forms[i]; break; } }
+  if (!form) return showToast("ไม่พบฟอร์ม","warning");
+
+  var activeSections = (APP.sections||[]).filter(function(s){ return s.isActive; });
+  var html = "";
+  var anyData = false;
+
+  activeSections.forEach(function(sec) {
+    var row = null;
+    (APP.dashboard||[]).forEach(function(d) {
+      if (String(d.year) === String(yr) && d.sectionId === sec.sectionId) row = d;
+    });
+    if (!row || !row.dataJson) return;
+    var dataObj = {};
+    try { dataObj = JSON.parse(row.dataJson); } catch(e) {}
+
+    // ตรวจว่า Section นี้มีข้อมูลของ form นี้จริงหรือไม่
+    var hasData = (form.fields||[]).some(function(f) {
+      if (f.type === "divider" || f.type === "image" || !f.key) return false;
+      if (f.type === "table") {
+        return Object.keys(dataObj).some(function(k){
+          return k.indexOf(f.key+"_r") === 0 && dataObj[k] !== "" && dataObj[k] !== null && dataObj[k] !== undefined;
+        });
+      }
+      var v = dataObj[f.key];
+      return v !== undefined && v !== "" && v !== null;
+    });
+    if (!hasData) return;
+    anyData = true;
+
+    var lastAt = row.lastUpdate ? toThaiDate(row.lastUpdate, true) : "-";
+    html += '<div class="qa-glass-card mb-3 p-0">'
+      + '<div class="qa-form-card-head" style="display:flex;justify-content:space-between;align-items:center;">'
+      +   '<span><i class="bi bi-folder-fill me-2"></i>'+escHtml(sec.sectionName)+'</span>'
+      +   '<span style="font-size:.7rem;font-weight:400;opacity:.7;"><i class="bi bi-clock me-1"></i>'+lastAt+'</span>'
+      + '</div>'
+      + '<div class="p-4">'+renderFieldsRO(form.fields||[], dataObj)+'</div>'
+      + '</div>';
+  });
+
+  if (!anyData) return showToast("ยังไม่มีข้อมูลที่ส่ง","warning");
+
+  document.getElementById("modal-view-title").innerHTML = '<i class="bi bi-folder-open-fill me-2"></i>'+escHtml(formName)+' (ปี '+yr+')';
+  document.getElementById("modal-submitter-info").innerHTML = "";
+  document.getElementById("modal-view-body").innerHTML = html;
   new bootstrap.Modal(document.getElementById("modal-view-data")).show();
 }
 

@@ -198,11 +198,11 @@ function loadUserSections() {
   var panesHtml = "";
   var validIndex = 0;
 
-  // ── วน Loop ตาม Form (Form-based sidebar) ──
+  // ── วน Loop ตาม Form (1 form = 1 รายการเสมอ) ──────────────
   (APP.forms || []).forEach(function(form) {
     if (!form.isActive) return;
 
-    // หา Section แรกของ User ที่ form นี้มีฟิลด์รองรับ
+    // หา Section แรกที่ match (ใช้เป็น effectiveSecId สำหรับ data key และ submit)
     var matchingSec = null;
     for (var si = 0; si < userSecIds.length; si++) {
       var sid = userSecIds[si];
@@ -211,12 +211,8 @@ function loadUserSections() {
         if (APP.sections[j].sectionId === sid && APP.sections[j].isActive) { secObj = APP.sections[j]; break; }
       }
       if (!secObj) continue;
-      // form-level assignment: form.sectionId ตรงกับ section นี้
       var formLevelMatch = form.sectionId && form.sectionId === sid;
-      // ✅ section.assignedFormIDs: Admin กำหนดฟอร์มให้ Section ใน Section Editor
-      // เดิมไม่ได้เช็ค ทำให้ฟอร์มไม่แสดงแม้ Admin กำหนดไว้แล้ว
       var sectionAssigned = (secObj.assignedFormIDs || []).indexOf(form.formId) >= 0;
-      // field-level: มีฟิลด์ที่ sectionIds รวม section นี้ หรือไม่ได้กำหนด section (visible to all)
       var hasField = formLevelMatch || sectionAssigned || (form.fields || []).some(function(f) {
         if (!f.sectionIds || !f.sectionIds.length) return true;
         return f.sectionIds.indexOf(sid) >= 0;
@@ -225,34 +221,29 @@ function loadUserSections() {
     }
     if (!matchingSec) return;
 
-    // ฟอร์มส่วนกลาง → ใช้ key "GLOBAL_formId" แทน sectionId เพื่อให้ข้อมูลเป็น 1 ชุดต่อปี
     var isShared = _isSharedForm(form);
-    var effectiveSecId = isShared ? ("GLOBAL_" + form.formId) : matchingSec.sectionId;
+    var effectiveSecId   = isShared ? ("GLOBAL_" + form.formId) : matchingSec.sectionId;
     var effectiveSecName = isShared ? form.formName : matchingSec.sectionName;
 
-    // นับ field-level progress เฉพาะ Section ที่ match
     var dashRow = dashMap[effectiveSecId] || null;
     var dataObj = {};
     if (dashRow && dashRow.dataJson) { try { dataObj = JSON.parse(dashRow.dataJson); } catch(e) {} }
-
-    // ใช้ _calcFieldProgress เพื่อให้สอดคล้องกัน (ไม่นับ toggle-group/checkbox-group/tick-grid/image)
     var _sp = (typeof _calcFieldProgress === 'function')
       ? _calcFieldProgress(effectiveSecId, [form], dataObj)
       : { total: 0, completed: 0 };
     var totalFields = _sp.total;
     var completedFields = _sp.completed;
-
     var pct = totalFields > 0 ? Math.round(completedFields / totalFields * 100) : 0;
     var isComplete = totalFields > 0 && completedFields === totalFields;
     var statusIcon = isComplete
       ? '<i class="bi bi-check-circle-fill text-success"></i>'
       : '<i class="bi bi-clock-history text-warning"></i>';
 
-    var fid = escHtml(form.formId);
+    var fid  = escHtml(form.formId);
     var sid2 = escHtml(effectiveSecId);
 
     tabsHtml += '<button class="qa-sidebar-btn ' + (validIndex === 0 ? 'active' : '') + '"'
-      + ' data-formid="' + fid + '" data-secid="' + sid2 + '"'
+      + ' data-panekey="' + fid + '" data-formid="' + fid + '" data-secid="' + sid2 + '"'
       + ' onclick="selectUserForm(\'' + fid + '\')">'
       + '<div style="display:flex;flex-direction:column;width:100%;min-width:0;">'
       + '<div class="d-flex justify-content-between align-items-start w-100 mb-2">'
@@ -268,7 +259,7 @@ function loadUserSections() {
       + '</div></div></button>';
 
     panesHtml += '<div id="form-pane-' + fid + '" style="display:' + (validIndex === 0 ? 'block' : 'none') + ';">'
-      + _buildFormPaneContent(form, matchingSec, effectiveSecId, effectiveSecName)
+      + _buildFormPaneContent(form, matchingSec, effectiveSecId, effectiveSecName, userSecIds)
       + '</div>';
 
     validIndex++;
@@ -293,8 +284,8 @@ function loadUserSections() {
 }
 
 function selectUserForm(formId) {
-  document.querySelectorAll('.qa-sidebar-btn[data-formid]').forEach(function(el) { el.classList.remove('active'); });
-  var btn = document.querySelector('[data-formid="' + formId + '"]');
+  document.querySelectorAll('.qa-sidebar-btn[data-panekey]').forEach(function(el) { el.classList.remove('active'); });
+  var btn = document.querySelector('[data-panekey="' + formId + '"]');
   if (btn) {
     btn.classList.add('active');
     var secId = btn.getAttribute('data-secid');
@@ -306,7 +297,7 @@ function selectUserForm(formId) {
 }
 
 // ── สร้างเนื้อหาภายใน form-pane (Copy bar + Form card) ──
-function _buildFormPaneContent(form, section, effectiveSecId, effectiveSecName) {
+function _buildFormPaneContent(form, section, effectiveSecId, effectiveSecName, userSecIds) {
   var fid = escHtml(form.formId);
   var sid = escHtml(effectiveSecId || section.sectionId);
 
@@ -318,11 +309,11 @@ function _buildFormPaneContent(form, section, effectiveSecId, effectiveSecName) 
     + '<i class="bi bi-clipboard-data me-1"></i> ดึงข้อมูลลงฟอร์ม</button>'
     + '</div>';
 
-  html += buildFormCard(form, section, effectiveSecId, effectiveSecName);
+  html += buildFormCard(form, section, effectiveSecId, effectiveSecName, userSecIds);
   return html;
 }
 
-function buildFormCard(form, section, effectiveSecId, effectiveSecName) {
+function buildFormCard(form, section, effectiveSecId, effectiveSecName, userSecIds) {
   var secId   = escHtml(effectiveSecId   || section.sectionId);
   var secName = escHtml(effectiveSecName || section.sectionName);
   var fid     = escHtml(form.formId);
@@ -331,11 +322,16 @@ function buildFormCard(form, section, effectiveSecId, effectiveSecName) {
     ? '<button type="button" class="qa-btn-danger btn-sm" onclick="promptClearSection(this,\''+secId+'\',\''+secName+'\')"><i class="bi bi-eraser-fill me-1"></i>ล้างข้อมูล</button>'
     : "";
 
-  var isAdminView = APP.activeRole === "admin_acting_as_user";
+  // ── filter fields ตาม userSecIds ทั้งหมด (ไม่ใช่แค่ section แรก) ──
+  // admin_acting_as_user และ manager เห็นทุก field
+  var isAdminView = APP.activeRole === "admin_acting_as_user"
+    || (APP.user && APP.user.role === "manager");
+  var _userSecs = userSecIds || (section ? [section.sectionId] : []);
   var visibleFields = (form.fields || []).filter(function(f) {
     if (isAdminView) return true;
     if (!f.sectionIds || !f.sectionIds.length) return true;
-    return f.sectionIds.indexOf(section.sectionId) >= 0;
+    // field visible ถ้า user มีอย่างน้อย 1 section ที่ตรงกับ field.sectionIds
+    return f.sectionIds.some(function(sid) { return _userSecs.indexOf(sid) >= 0; });
   });
 
   // ── Copy bar: ดึงข้อมูลจากปีการศึกษาอื่น ────────────────────
@@ -587,6 +583,11 @@ function _fillAllFormsWithCurrentData(dashMap) {
     var dataObj = {};
     try { dataObj = JSON.parse(dashRow.dataJson); } catch(e) { return; }
     fillFormData(formEl, dataObj);
+    // Re-trigger auto-sum for all table fields (fillFormData ใช้ el.value= ไม่ fire oninput)
+    formEl.querySelectorAll('[name$="_table_def"]').forEach(function(metaEl) {
+      var fkey = metaEl.name.replace(/_table_def$/, "");
+      if (typeof onTblInput === 'function') onTblInput(fkey);
+    });
     // Add "last edited" badge to form header
     var latestAt = null, latestBy = "";
     Object.keys(dataObj).forEach(function(k) {
